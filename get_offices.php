@@ -1,14 +1,29 @@
 <?php
-require_once 'db.php';
-
+// get_offices.php — AJAX-запрос для отделений выбранного оператора
+require 'db.php';
 header('Content-Type: application/json');
 
-$operatorId = isset($_GET['operator_id']) ? (int)$_GET['operator_id'] : 0;
+$carrier_id = (int)($_GET['carrier'] ?? 0);
+$search = trim($_GET['search'] ?? '');
 
-if ($operatorId > 0) {
-    $offices = getOfficesByOperator($operatorId);
-    echo json_encode(['offices' => $offices]);
+if ($carrier_id > 0) {
+    $sql = "SELECT id, city, address FROM offices WHERE carrier_id = ?";
+    $params = [$carrier_id];
+    
+    if (!empty($search)) {
+        $sql .= " AND (city LIKE ? OR address LIKE ?)";
+        $params[] = "%$search%";
+        $params[] = "%$search%";
+    }
+    
+    $sql .= " ORDER BY city, address";
+    
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
+    $offices = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    echo json_encode($offices, JSON_UNESCAPED_UNICODE);
 } else {
-    echo json_encode(['offices' => []]);
+    echo json_encode([]);
 }
 ?>
