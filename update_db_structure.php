@@ -36,9 +36,29 @@ try {
             echo "Столбец уже существует: $column_name\n";
         }
     }
+    
+    // Check if routes table exists, if not create it
+    $tables = $db->query("SHOW TABLES LIKE 'routes'")->fetchAll();
+    
+    if (count($tables) == 0) {
+        echo "Creating routes table...\n";
+        
+        $sql = "CREATE TABLE routes (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            from_office INT NOT NULL,
+            to_office INT NOT NULL,
+            distance_km DECIMAL(8,2) NOT NULL,
+            INDEX idx_from_to (from_office, to_office)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;";
+        
+        $db->exec($sql);
+        echo "Routes table created successfully.\n";
+    } else {
+        echo "Routes table already exists.\n";
+    }
 
     echo "Структура базы данных успешно обновлена!";
-    
+
 } catch (PDOException $e) {
     echo "Ошибка при обновлении структуры базы данных: " . $e->getMessage();
 }
