@@ -1,5 +1,5 @@
 <?php require 'db.php'; 
-if (isset($_SESSION['user'])) header('Location: calculator_map.php');
+if (isset($_SESSION['user'])) header('Location: calculator.php');
 ?>
 <!DOCTYPE html>
 <html lang="ru">

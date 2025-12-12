@@ -7,16 +7,16 @@ $carrier_id = (int)($_GET['carrier'] ?? 0);
 $search = trim($_GET['search'] ?? '');
 
 if ($carrier_id > 0) {
-    $sql = "SELECT o.id, o.city, o.address, o.lat, o.lng, c.name as carrier_name FROM offices o LEFT JOIN carriers c ON o.carrier_id = c.id WHERE o.carrier_id = ?";
+    $sql = "SELECT id, city, address FROM offices WHERE carrier_id = ?";
     $params = [$carrier_id];
     
     if (!empty($search)) {
-        $sql .= " AND (o.city LIKE ? OR o.address LIKE ?)";
+        $sql .= " AND (city LIKE ? OR address LIKE ?)";
         $params[] = "%$search%";
         $params[] = "%$search%";
     }
     
-    $sql .= " ORDER BY o.city, o.address";
+    $sql .= " ORDER BY city, address";
     
     $stmt = $db->prepare($sql);
     $stmt->execute($params);
