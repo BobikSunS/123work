@@ -1,1 +1,5 @@
-Nothing needs to be added to the .gitignore file since the modified files (admin/index.php and generate_pdf.php) are PHP source code files that should be tracked in version control. There are no build artifacts, dependencies, or temporary files in the provided list of changes that would require ignoring.
+(cost_calculator.php is a source file, calculate_cost.php, calculator.php, generate_pdf.php, order_form.php are all source files, no build artifacts, dependencies, or temp files in the changes)
+
+```php
+
+```

@@ -1,5 +1,6 @@
 <?php
 require 'db.php';
+require 'cost_calculator.php';
 if (!isset($_SESSION['user'])) header('Location: index.php');
 $user = $_SESSION['user'];
 
@@ -32,29 +33,15 @@ $to_office_stmt = $db->prepare("SELECT * FROM offices WHERE id = ?");
 $to_office_stmt->execute([$order['to_office']]);
 $to_office = $to_office_stmt->fetch();
 
-// Calculate detailed cost breakdown
-$base_cost = $carrier['base_cost'] ?? 0;
-$weight_cost = $order['weight'] * ($carrier['cost_per_kg'] ?? 0);
-$insurance_cost = 0;
-$packaging_cost = 0;
-$fragile_cost = 0;
+// Calculate detailed cost breakdown using the universal function
+$package_type = 'parcel'; // по умолчанию
+$letter_count = 1; // по умолчанию
 
-// Calculate insurance cost (2% of base + weight cost)
-if (!empty($order['insurance'])) {
-    $insurance_cost = round(($base_cost + $weight_cost) * 0.02, 2);
-}
+// Попробуем определить тип посылки из данных заказа, если возможно
+// В большинстве случаев тип не сохраняется в заказе, поэтому используем универсальный расчет
 
-// Calculate packaging cost (fixed 3 BYN)
-if (!empty($order['packaging'])) {
-    $packaging_cost = 3.00;
-}
-
-// Calculate fragile cost (1% of base + weight cost)
-if (!empty($order['fragile'])) {
-    $fragile_cost = round(($base_cost + $weight_cost) * 0.01, 2);
-}
-
-$calculated_total = $base_cost + $weight_cost + $insurance_cost + $packaging_cost + $fragile_cost;
+$result = calculateDeliveryCost($db, $order['carrier_id'], $order['from_office'], $order['to_office'], $order['weight'], $package_type, !empty($order['insurance']), $letter_count, !empty($order['packaging']), !empty($order['fragile']));
+$calculated_total = $result['cost'];
 
 // Generate PDF content
 $pdf_content = "

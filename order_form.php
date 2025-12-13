@@ -1,4 +1,5 @@
 <?php require 'db.php';
+require 'cost_calculator.php';
 if (!isset($_SESSION['user'])) header('Location: index.php');
 $user = $_SESSION['user'];
 
@@ -12,6 +13,8 @@ $preselected_from_office = isset($_GET['from']) ? (int)$_GET['from'] : 0;
 $preselected_to_office = isset($_GET['to']) ? (int)$_GET['to'] : 0;
 $preselected_package_type = isset($_GET['package_type']) ? $_GET['package_type'] : '';
 $preselected_insurance = isset($_GET['insurance']) ? (bool)$_GET['insurance'] : false;
+$preselected_packaging = isset($_GET['packaging']) ? (bool)$_GET['packaging'] : false;
+$preselected_fragile = isset($_GET['fragile']) ? (bool)$_GET['fragile'] : false;
 
 // Получаем информацию об офисах если они были переданы
 $from_office_info = null;
@@ -61,38 +64,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Используем переданную стоимость из калькулятора, если она есть
             $cost = floatval($_POST['cost'] ?? $_GET['cost'] ?? 0);
             if ($cost <= 0) {
-                // Если стоимость не передана, вычисляем её
-                $cost = $carrier['base_cost'] + $weight * $carrier['cost_per_kg'];
+                // Если стоимость не передана, вычисляем её с помощью универсальной функции
+                $package_type = 'parcel'; // по умолчанию
+                $letter_count = 1; // по умолчанию
                 
-                // Получаем расстояние между офисами, если они указаны
-                if ($from_office > 0 && $to_office > 0) {
-                    // Получаем информацию о маршруте из calculated_routes
-                    $stmt_route = $db->prepare("SELECT distance_km FROM calculated_routes WHERE from_office_id = ? AND to_office_id = ?");
-                    $stmt_route->execute([$from_office, $to_office]);
-                    $route_info = $stmt_route->fetch();
-                    
-                    if ($route_info) {
-                        $distance = floatval($route_info['distance_km']);
-                        $cost += $distance * $carrier['cost_per_km'];
-                    }
+                // Определяем тип посылки, если есть информация
+                if (isset($_GET['package_type'])) {
+                    $package_type = $_GET['package_type'];
                 }
                 
-                // Если выбрана страховка, добавляем 2%
-                if ($insurance) {
-                    $cost *= 1.02;
-                }
-                
-                // Если выбрана упаковка, добавляем фиксированную стоимость
-                if ($packaging) {
-                    $cost += 3.00;
-                }
-                
-                // Если хрупкая посылка, добавляем 1%
-                if ($fragile) {
-                    $cost *= 1.01;
-                }
-                
-                $cost = round($cost, 2);
+                $result = calculateDeliveryCost($db, $carrier_id, $from_office, $to_office, $weight, $package_type, $insurance, $letter_count, $packaging, $fragile);
+                $cost = $result['cost'];
             }
 
             // Генерируем трек-номер

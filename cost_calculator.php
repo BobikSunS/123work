@@ -1,0 +1,93 @@
+<?php
+// Единая функция для расчета стоимости доставки
+
+function calculateDeliveryCost($db, $carrier_id, $from_office_id, $to_office_id, $weight, $package_type, $insurance, $letter_count = 1, $packaging = false, $fragile = false) {
+    // Получаем информацию о перевозчике
+    $carrier = $db->prepare("SELECT * FROM carriers WHERE id = ?");
+    $carrier->execute([$carrier_id]);
+    $carrier = $carrier->fetch();
+    
+    if (!$carrier) {
+        throw new Exception("Invalid carrier");
+    }
+    
+    // Получаем информацию о маршруте
+    $routeData = $db->prepare("SELECT distance_km FROM calculated_routes WHERE from_office_id = ? AND to_office_id = ?");
+    $routeData->execute([$from_office_id, $to_office_id]);
+    $routeData = $routeData->fetch();
+    
+    if (!$routeData) {
+        // Если маршрут не найден, вычисляем приблизительное расстояние
+        $offices = $db->prepare("SELECT lat, lng FROM offices WHERE id IN (?, ?)");
+        $offices->execute([$from_office_id, $to_office_id]);
+        $office_rows = $offices->fetchAll();
+        
+        if (count($office_rows) < 2) {
+            throw new Exception("Invalid office IDs");
+        }
+        
+        $from_office_data = $office_rows[0];
+        $to_office_data = $office_rows[1];
+        
+        // Calculate approximate distance using Haversine formula
+        $lat1 = deg2rad($from_office_data['lat']);
+        $lon1 = deg2rad($from_office_data['lng']);
+        $lat2 = deg2rad($to_office_data['lat']);
+        $lon2 = deg2rad($to_office_data['lng']);
+        
+        $delta_lat = $lat2 - $lat1;
+        $delta_lon = $lon2 - $lon1;
+        
+        $a = sin($delta_lat / 2) * sin($delta_lat / 2) + 
+             cos($lat1) * cos($lat2) * 
+             sin($delta_lon / 2) * sin($delta_lon / 2);
+        $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
+        
+        $distance = 6371 * $c; // Earth's radius in km
+    } else {
+        $distance = floatval($routeData['distance_km']);
+    }
+    
+    // Adjust weight for letters
+    if ($package_type === 'letter') {
+        $weight = $letter_count * 0.02; // weight per letter is 0.02 kg
+    }
+    
+    // Check weight limit
+    if ($weight > $carrier['max_weight']) {
+        throw new Exception("Weight exceeds carrier limit");
+    }
+    
+    // Calculate base cost
+    $cost = $carrier['base_cost'] + 
+            $weight * $carrier['cost_per_kg'] + 
+            $distance * $carrier['cost_per_km'];
+    
+    // Apply insurance
+    if ($insurance) {
+        $cost *= 1.02;
+    }
+    
+    // Apply packaging
+    if ($packaging) {
+        $cost += 3.00;
+    }
+    
+    // Apply fragile
+    if ($fragile) {
+        $cost *= 1.01;
+    }
+    
+    // Apply minimum cost for letters
+    if ($package_type === 'letter') {
+        $cost = max($cost, 2.5);
+    }
+    
+    $cost = round($cost, 2);
+    
+    return [
+        'cost' => $cost,
+        'distance' => $distance
+    ];
+}
+?>
