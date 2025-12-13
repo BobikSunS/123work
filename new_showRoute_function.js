@@ -36,58 +36,19 @@ function showRoute() {
 
         if (data.success) {
             if (data.route_data) {
-                // Check if the route_data is an array of points (GraphHopper format) or polyline string
-                let routeCoords = [];
+                // Декодируем маршрут из polyline
+                const decodedRoute = L.PolylineUtil.decode(data.route_data);
                 
-                if (Array.isArray(data.route_data)) {
-                    // This is GraphHopper format: array of [lat, lng] points
-                    routeCoords = data.route_data;
-                } else if (typeof data.route_data === 'string') {
-                    // This is OSRM polyline format
-                    const decodedRoute = L.PolylineUtil.decode(data.route_data);
-                    // Convert from [lng, lat] to [lat, lng] format
-                    routeCoords = decodedRoute.map(coord => [coord[1], coord[0]]);
-                } else {
-                    // Fallback to straight line
-                    const fromOffice = offices.find(o => o.id == selectedFromOffice);
-                    const toOffice = offices.find(o => o.id == selectedToOffice);
-                    
-                    if (fromOffice && toOffice) {
-                        routeCoords = [
-                            [fromOffice.lat, fromOffice.lng],
-                            [toOffice.lat, toOffice.lng]
-                        ];
-                    }
-                }
+                // Преобразуем координаты из [lng, lat] в [lat, lng] формат Leaflet
+                const routeCoords = decodedRoute.map(coord => [coord[1], coord[0]]);
 
-                if (routeCoords.length > 0) {
-                    routeLayer = L.polyline(routeCoords, {color: 'red', weight: 4}).addTo(map);
+                routeLayer = L.polyline(routeCoords, {color: 'red', weight: 4}).addTo(map);
 
-                    // Центрируем карту на маршруте
-                    const bounds = L.latLngBounds(routeCoords);
-                    map.fitBounds(bounds, {padding: [50, 50]});
+                // Центрируем карту на маршруте
+                const bounds = L.latLngBounds(routeCoords);
+                map.fitBounds(bounds, {padding: [50, 50]});
 
-                    alert(`Маршрут построен. Расстояние: ${data.distance.toFixed(2)} км, Время: ${data.duration} мин.`);
-                } else {
-                    // Fallback to straight line if route decoding fails
-                    const fromOffice = offices.find(o => o.id == selectedFromOffice);
-                    const toOffice = offices.find(o => o.id == selectedToOffice);
-
-                    if (fromOffice && toOffice) {
-                        const straightLineCoords = [
-                            [fromOffice.lat, fromOffice.lng],
-                            [toOffice.lat, toOffice.lng]
-                        ];
-
-                        routeLayer = L.polyline(straightLineCoords, {color: 'red', weight: 4}).addTo(map);
-
-                        // Центрируем карту на маршруте
-                        const bounds = L.latLngBounds(straightLineCoords);
-                        map.fitBounds(bounds, {padding: [50, 50]});
-
-                        alert(`Маршрут построен. Расстояние: ${data.distance.toFixed(2)} км (по прямой).`);
-                    }
-                }
+                alert(`Маршрут построен. Расстояние: ${data.distance.toFixed(2)} км, Время: ${data.duration} мин.`);
             } else {
                 // Если route_data отсутствует, используем прямую линию как fallback
                 const fromOffice = offices.find(o => o.id == selectedFromOffice);
