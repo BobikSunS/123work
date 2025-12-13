@@ -80,11 +80,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'hours' => $hours,
                     'distance' => $distance
                 ];
-                
-                // Instead of showing the result on the same page, redirect to order form
-                $redirect_url = "order_form.php?carrier=$carrier_id&weight=$weight&cost=$cost&from=$from&to=$to&package_type=$type&insurance=" . ($insurance ? 1 : 0);
-                header("Location: $redirect_url");
-                exit;
             }
         }
     }
@@ -267,7 +262,7 @@ function formatDeliveryTime($hours) {
                     </div>
                 </div>
 
-                <button type="button" class="btn btn-success btn-lg mt-4 w-100" id="calculate-btn" onclick="redirectToOrderForm()" disabled>Рассчитать</button>
+                <button type="submit" class="btn btn-success btn-lg mt-4 w-100" id="calculate-btn" disabled>Рассчитать</button>
             </form>
         </div>
     </div>
@@ -574,49 +569,36 @@ function findNearestToOffice() {
         return;
     }
     
-    // Геокодируем адрес получателя
-    const geocodeUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(recipientAddress)}`;
-    
-    fetch(geocodeUrl)
-        .then(response => response.json())
-        .then(data => {
-            if (data && data.length > 0) {
-                const lat = parseFloat(data[0].lat);
-                const lon = parseFloat(data[0].lon);
-                
-                // Находим ближайший офис к адресу получателя
-                let nearestOffice = null;
-                let minDistance = Infinity;
-                
-                offices.forEach(office => {
-                    if (office.lat && office.lng) {
-                        const distance = Math.sqrt(
-                            Math.pow(office.lat - lat, 2) + 
-                            Math.pow(office.lng - lon, 2)
-                        );
-                        
-                        if (distance < minDistance) {
-                            minDistance = distance;
-                            nearestOffice = office;
-                        }
+    // В реальном приложении здесь должен быть вызов геокодера для получения координат адреса
+    // Для демонстрации просто найдем ближайший офис к отправке
+    if (selectedFromOffice) {
+        // Находим ближайший офис к отправке (в реальности это будет к адресу получателя)
+        let nearestOffice = null;
+        let minDistance = Infinity;
+        
+        const fromOffice = offices.find(o => o.id == selectedFromOffice);
+        if (fromOffice) {
+            offices.forEach(office => {
+                if (office.lat && office.lng && office.id != selectedFromOffice) {
+                    const distance = Math.sqrt(
+                        Math.pow(office.lat - fromOffice.lat, 2) + 
+                        Math.pow(office.lng - fromOffice.lng, 2)
+                    );
+                    
+                    if (distance < minDistance) {
+                        minDistance = distance;
+                        nearestOffice = office;
                     }
-                });
-                
-                if (nearestOffice) {
-                    selectToOffice(nearestOffice.id, nearestOffice.city, nearestOffice.address);
-                    // Центрируем карту на выбранном офисе
-                    map.setView([nearestOffice.lat, nearestOffice.lng], 13);
-                } else {
-                    alert("Не удалось найти ближайшее отделение для указанного адреса.");
                 }
-            } else {
-                alert("Не удалось найти координаты для указанного адреса.");
-            }
-        })
-        .catch(error => {
-            console.error('Error geocoding address:', error);
-            alert("Ошибка при определении координат адреса. Пожалуйста, уточните адрес.");
-        });
+            });
+        }
+        
+        if (nearestOffice) {
+            selectToOffice(nearestOffice.id, nearestOffice.city, nearestOffice.address);
+            // Центрируем карту на выбранном офисе
+            map.setView([nearestOffice.lat, nearestOffice.lng], 13);
+        }
+    }
 }
 
 // Показ маршрута
@@ -636,66 +618,26 @@ function showRoute() {
     const toOffice = offices.find(o => o.id == selectedToOffice);
     
     if (fromOffice && toOffice) {
-        // Используем OpenRouteService API для получения маршрута по дорогам
-        const routeUrl = `https://api.openrouteservice.org/v2/directions/driving-car?api_key=58d8037251918540552132b4a16a423c5152a012131018f03c689f0673491498&start=${fromOffice.lng},${fromOffice.lat}&end=${toOffice.lng},${toOffice.lat}`;
+        // В реальном приложении здесь должен быть вызов API для получения маршрута
+        // Для демонстрации рисуем прямую линию
+        const routeCoords = [
+            [fromOffice.lat, fromOffice.lng],
+            [toOffice.lat, toOffice.lng]
+        ];
         
-        fetch(routeUrl, {
-            method: 'GET',
-            headers: {
-                'Authorization': '58d8037251918540552132b4a16a423c5152a012131018f03c689f0673491498'
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data && data.features && data.features[0] && data.features[0].geometry && data.features[0].geometry.coordinates) {
-                // Преобразуем координаты из формата [lng, lat] в [lat, lng] для Leaflet
-                const routeCoords = data.features[0].geometry.coordinates.map(coord => [coord[1], coord[0]]);
-                
-                routeLayer = L.polyline(routeCoords, {color: 'red', weight: 4}).addTo(map);
-                
-                // Центрируем карту на маршруте
-                const bounds = L.latLngBounds(routeCoords);
-                map.fitBounds(bounds, {padding: [50, 50]});
-                
-                // Получаем расстояние и время из ответа API
-                const summary = data.features[0].properties.summary;
-                const distance = summary.distance / 1000; // преобразуем в км
-                const duration = summary.duration / 60; // преобразуем в минуты
-                
-                alert(`Маршрут построен. Расстояние: ${distance.toFixed(2)} км, Время: ${Math.round(duration)} мин.`);
-            } else {
-                // Если API не сработал, рисуем прямую линию как fallback
-                const routeCoords = [
-                    [fromOffice.lat, fromOffice.lng],
-                    [toOffice.lat, toOffice.lng]
-                ];
-                
-                routeLayer = L.polyline(routeCoords, {color: 'red', weight: 4}).addTo(map);
-                
-                // Центрируем карту на маршруте
-                const bounds = L.latLngBounds(routeCoords);
-                map.fitBounds(bounds, {padding: [50, 50]});
-                
-                alert("Маршрут построен (приближенный путь).");
-            }
-        })
-        .catch(error => {
-            console.error('Error fetching route:', error);
-            
-            // В случае ошибки API, рисуем прямую линию как fallback
-            const routeCoords = [
-                [fromOffice.lat, fromOffice.lng],
-                [toOffice.lat, toOffice.lng]
-            ];
-            
-            routeLayer = L.polyline(routeCoords, {color: 'red', weight: 4}).addTo(map);
-            
-            // Центрируем карту на маршруте
-            const bounds = L.latLngBounds(routeCoords);
-            map.fitBounds(bounds, {padding: [50, 50]});
-            
-            alert("Маршрут построен (приближенный путь).");
-        });
+        routeLayer = L.polyline(routeCoords, {color: 'red', weight: 4}).addTo(map);
+        
+        // Центрируем карту на маршруте
+        const bounds = L.latLngBounds(routeCoords);
+        map.fitBounds(bounds, {padding: [50, 50]});
+        
+        // Показываем информацию о маршруте
+        const distance = Math.sqrt(
+            Math.pow(toOffice.lat - fromOffice.lat, 2) + 
+            Math.pow(toOffice.lng - fromOffice.lng, 2)
+        ) * 111; // Приблизительное расстояние в км
+        
+        alert(`Маршрут построен. Приблизительное расстояние: ${distance.toFixed(2)} км.`);
     }
 }
 
@@ -716,72 +658,48 @@ function showFormula() {
         
         if (fromOffice && toOffice) {
             // В реальном приложении здесь будет информация из базы данных о фактическом маршруте
-            // Для демонстрации используем приблизительное расстояние
             const distance = Math.sqrt(
                 Math.pow(toOffice.lat - fromOffice.lat, 2) + 
                 Math.pow(toOffice.lng - fromOffice.lng, 2)
             ) * 111; // Приблизительное расстояние в км
             
             const formula = `
-                <div style="padding: 15px;">
-                    <h5>Формула расчета стоимости доставки</h5>
-                    <p><strong>Оператор:</strong> ${carrier.name}</p>
-                    <p><strong>Отделение отправки:</strong> ${fromOffice.city} — ${fromOffice.address}</p>
-                    <p><strong>Отделение получения:</strong> ${toOffice.city} — ${toOffice.address}</p>
-                    <p><strong>Расстояние:</strong> ${distance.toFixed(2)} км</p>
-                    <p><strong>Формула:</strong></p>
-                    <p><strong>Стоимость = Базовая стоимость + (Вес × Стоимость за кг) + (Расстояние × Стоимость за км)</strong></p>
-                    <p>Стоимость = ${carrier.base_cost} + (Вес × ${carrier.cost_per_kg}) + (${distance.toFixed(2)} × ${carrier.cost_per_km})</p>
-                    <p><em>Время доставки: Расстояние / Скорость оператора (${carrier.speed_kmh} км/ч)</em></p>
-                    <p><em>Формула: Время = ${distance.toFixed(2)} км / ${carrier.speed_kmh} км/ч = ${(distance / carrier.speed_kmh).toFixed(2)} ч</em></p>
-                </div>
+                <h5>Формула расчета стоимости доставки</h5>
+                <p><strong>Оператор:</strong> ${carrier.name}</p>
+                <p><strong>Отделение отправки:</strong> ${fromOffice.city} — ${fromOffice.address}</p>
+                <p><strong>Отделение получения:</strong> ${toOffice.city} — ${toOffice.address}</p>
+                <p><strong>Расстояние:</strong> ${distance.toFixed(2)} км</p>
+                <p><strong>Формула:</strong></p>
+                <p>Стоимость = Базовая стоимость + (Вес × Стоимость за кг) + (Расстояние × Стоимость за км)</p>
+                <p>Стоимость = ${carrier.base_cost} + (Вес × ${carrier.cost_per_kg}) + (${distance.toFixed(2)} × ${carrier.cost_per_km})</p>
+                <p><em>Время доставки: Расстояние / Скорость оператора (${carrier.speed_kmh} км/ч)</em></p>
             `;
             
-            // Показываем в модальном окне
-            const modal = document.createElement('div');
-            modal.innerHTML = formula;
-            modal.style.position = 'fixed';
-            modal.style.top = '50%';
-            modal.style.left = '50%';
-            modal.style.transform = 'translate(-50%, -50%)';
-            modal.style.backgroundColor = 'white';
-            modal.style.padding = '0';
-            modal.style.border = '2px solid #007cba';
-            modal.style.borderRadius = '10px';
-            modal.style.zIndex = '10000';
-            modal.style.maxWidth = '600px';
-            modal.style.maxHeight = '80vh';
-            modal.style.overflowY = 'auto';
-            modal.style.boxShadow = '0 4px 20px rgba(0,0,0,0.3)';
+            // Показываем в модальном окне или алерте
+            const div = document.createElement('div');
+            div.innerHTML = formula;
+            div.style.position = 'fixed';
+            div.style.top = '50%';
+            div.style.left = '50%';
+            div.style.transform = 'translate(-50%, -50%)';
+            div.style.backgroundColor = 'white';
+            div.style.padding = '20px';
+            div.style.border = '2px solid #ccc';
+            div.style.borderRadius = '10px';
+            div.style.zIndex = '10000';
+            div.style.maxWidth = '500px';
+            div.style.maxHeight = '80vh';
+            div.style.overflowY = 'auto';
             
             const closeBtn = document.createElement('button');
             closeBtn.textContent = 'Закрыть';
-            closeBtn.style.position = 'absolute';
-            closeBtn.style.top = '10px';
-            closeBtn.style.right = '10px';
-            closeBtn.style.background = '#dc3545';
-            closeBtn.style.color = 'white';
-            closeBtn.style.border = 'none';
-            closeBtn.style.borderRadius = '50%';
-            closeBtn.style.width = '30px';
-            closeBtn.style.height = '30px';
-            closeBtn.style.cursor = 'pointer';
-            closeBtn.onclick = function() { document.body.removeChild(backdrop); document.body.removeChild(modal); };
+            closeBtn.style.display = 'block';
+            closeBtn.style.marginTop = '15px';
+            closeBtn.style.padding = '5px 10px';
+            closeBtn.onclick = function() { document.body.removeChild(div); };
             
-            // Создаем затемнение фона
-            const backdrop = document.createElement('div');
-            backdrop.style.position = 'fixed';
-            backdrop.style.top = '0';
-            backdrop.style.left = '0';
-            backdrop.style.width = '100%';
-            backdrop.style.height = '100%';
-            backdrop.style.backgroundColor = 'rgba(0,0,0,0.5)';
-            backdrop.style.zIndex = '9999';
-            backdrop.onclick = function() { document.body.removeChild(backdrop); document.body.removeChild(modal); };
-            
-            modal.appendChild(closeBtn);
-            document.body.appendChild(backdrop);
-            document.body.appendChild(modal);
+            div.appendChild(closeBtn);
+            document.body.appendChild(div);
         }
     }
 }
@@ -797,58 +715,6 @@ function toggleFields(type) {
     } else {
         weightDiv.style.display = 'block';
         letterDiv.style.display = 'none';
-    }
-}
-
-// Функция для перенаправления на форму заказа
-function redirectToOrderForm() {
-    if (!selectedFromOffice || !selectedToOffice) {
-        alert("Пожалуйста, выберите оба офиса (отправка и получение).");
-        return;
-    }
-    
-    // Собираем данные формы
-    const formData = new FormData(document.getElementById('calculation-form'));
-    const packageType = formData.get('package_type');
-    let weight;
-    
-    if (packageType === 'letter') {
-        const letterCount = parseInt(formData.get('letter_count') || 1);
-        weight = letterCount * 0.02; // вес одного письма 0.02 кг
-    } else {
-        weight = parseFloat(formData.get('weight'));
-    }
-    
-    const insurance = formData.get('insurance') ? 1 : 0;
-    const carrierId = document.getElementById('selected-carrier').value;
-    
-    // Вычисляем стоимость (аналогично серверной логике)
-    const carrier = <?php echo json_encode($carriers); ?>.find(c => c.id == carrierId);
-    
-    if (carrier) {
-        // Используем приблизительное расстояние для расчета стоимости
-        const fromOffice = offices.find(o => o.id == selectedFromOffice);
-        const toOffice = offices.find(o => o.id == selectedToOffice);
-        
-        if (fromOffice && toOffice) {
-            const distance = Math.sqrt(
-                Math.pow(toOffice.lat - fromOffice.lat, 2) + 
-                Math.pow(toOffice.lng - fromOffice.lng, 2)
-            ) * 111; // Приблизительное расстояние в км
-            
-            let cost = parseFloat(carrier.base_cost) + 
-                      weight * parseFloat(carrier.cost_per_kg) + 
-                      distance * parseFloat(carrier.cost_per_km);
-            
-            if (insurance) cost *= 1.02;
-            if (packageType === 'letter') cost = Math.max(cost, 2.5);
-            
-            cost = Math.round(cost * 100) / 100; // округление до 2 знаков
-            
-            // Перенаправляем на форму заказа с параметрами
-            const url = `order_form.php?carrier=${carrierId}&weight=${weight}&cost=${cost}&from=${selectedFromOffice}&to=${selectedToOffice}&package_type=${packageType}&insurance=${insurance}`;
-            window.location.href = url;
-        }
     }
 }
 
