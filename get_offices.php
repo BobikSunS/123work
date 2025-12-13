@@ -3,11 +3,11 @@
 require 'db.php';
 header('Content-Type: application/json');
 
-$carrier_id = (int)($_GET['carrier'] ?? 0);
+$carrier_id = (int)($_GET['carrier_id'] ?? 0);
 $search = trim($_GET['search'] ?? '');
 
 if ($carrier_id > 0) {
-    $sql = "SELECT id, city, address FROM offices WHERE carrier_id = ?";
+    $sql = "SELECT id, city, address, lat, lng FROM offices WHERE carrier_id = ?";
     $params = [$carrier_id];
     
     if (!empty($search)) {

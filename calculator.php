@@ -4,47 +4,85 @@ $user = $_SESSION['user'];
 
 $carriers = $db->query("SELECT * FROM carriers")->fetchAll();
 
-// Граф
-$graph = [];
-foreach ($db->query("SELECT from_office, to_office, distance_km FROM routes") as $r) {
-    $graph[$r['from_office']][$r['to_office']] = $r['distance_km'];
-    $graph[$r['to_office']][$r['from_office']] = $r['distance_km'];
-}
-
-function dijkstra($graph, $start, $end) {
-    // Check if both start and end nodes exist in the graph
-    if (!isset($graph[$start]) || !isset($graph[$end])) {
-        return null;
+// Функция для получения маршрута между офисами
+function getRouteBetweenOffices($db, $from_office_id, $to_office_id) {
+    // Проверяем наличие готового маршрута в таблице calculated_routes
+    $stmt = $db->prepare("SELECT distance_km, duration_min, route_data FROM calculated_routes WHERE from_office_id = ? AND to_office_id = ?");
+    $stmt->execute([$from_office_id, $to_office_id]);
+    $route = $stmt->fetch();
+    
+    if ($route) {
+        return [
+            'distance' => floatval($route['distance_km']),
+            'duration' => intval($route['duration_min']),
+            'route_data' => $route['route_data']
+        ];
     }
     
-    $dist = array_fill_keys(array_keys($graph), INF);
-    $prev = [];
-    $dist[$start] = 0;
-    $queue = [$start => 0];
+    // Если маршрут не найден в calculated_routes, используем старую систему (если нужно)
+    return null;
+}
 
-    while (!empty($queue)) {
-        $u = array_keys($queue, min($queue))[0];
-        unset($queue[$u]);
-        if (!isset($graph[$u])) continue;
-        foreach ($graph[$u] as $v => $w) {
-            $alt = $dist[$u] + $w;
-            if ($alt < $dist[$v]) {
-                $dist[$v] = $alt;
-                $prev[$v] = $u;
-                $queue[$v] = $alt;
+// Функция для получения офисов по оператору
+function getOfficesByCarrier($db, $carrier_id) {
+    $stmt = $db->prepare("SELECT * FROM offices WHERE carrier_id = ?");
+    $stmt->execute([$carrier_id]);
+    return $stmt->fetchAll();
+}
+
+$result = $error = null;
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $carrier_id = (int)$_POST['carrier'];
+    $from = (int)$_POST['from'];
+    $to = (int)$_POST['to'];
+
+    if ($from === $to) {
+        $error = "Нельзя отправить в то же отделение!";
+    } else {
+        $carrier = $db->query("SELECT * FROM carriers WHERE id = $carrier_id")->fetch();
+        
+        // Получаем маршрут между офисами
+        $routeData = getRouteBetweenOffices($db, $from, $to);
+        
+        if (!$routeData) {
+            $error = "Маршрут не найден!";
+        } else {
+            $distance = $routeData['distance'];
+            $duration_min = $routeData['duration'];
+            $base_hours = $duration_min / 60; // преобразуем минуты в часы
+
+            $type = $_POST['package_type'];
+            $insurance = isset($_POST['insurance']);
+
+            $weight = $type === 'letter' 
+                ? 0.02 * (int)($_POST['letter_count'] ?? 1)
+                : max((float)$_POST['weight'], 0);
+
+            $max_weight = $carrier['max_weight'];
+
+            if ($weight > $max_weight) {
+                $error = "Вес превышает лимит оператора ($max_weight кг)!";
+            } else {
+                $cost = $carrier['base_cost'] 
+                      + $weight * $carrier['cost_per_kg'] 
+                      + $distance * $carrier['cost_per_km'];
+
+                if ($insurance) $cost *= 1.02;
+                if ($type === 'letter') $cost = max($cost, 2.5);
+
+                $cost = round($cost, 2);
+                $hours = round($base_hours, 1);
+
+                $result = [
+                    'carrier' => $carrier,
+                    'cost' => $cost,
+                    'hours' => $hours,
+                    'distance' => $distance
+                ];
             }
         }
     }
-    if ($dist[$end] === INF) return null;
-    $path = [];
-    $u = $end;
-    while ($u != $start) {
-        $path[] = $u;
-        $u = $prev[$u] ?? null;
-        if ($u === null) return null;
-    }
-    $path[] = $start;
-    return ['path' => array_reverse($path), 'distance' => $dist[$end]];
 }
 
 function formatDeliveryTime($hours) {
@@ -66,57 +104,6 @@ function formatDeliveryTime($hours) {
         return "Более недели";
     }
 }
-
-$result = $error = null;
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $carrier_id = (int)$_POST['carrier'];
-    $from = (int)$_POST['from'];
-    $to = (int)$_POST['to'];
-
-    if ($from === $to) {
-        $error = "Нельзя отправить в то же отделение!";
-    } else {
-        $carrier = $db->query("SELECT * FROM carriers WHERE id = $carrier_id")->fetch();
-        $pathData = dijkstra($graph, $from, $to);
-        if (!$pathData) {
-            $error = "Маршрут не найден!";
-        } else {
-            $distance = $pathData['distance'];
-            $base_hours = $distance / $carrier['speed_kmh'];
-
-            $type = $_POST['package_type'];
-            $insurance = isset($_POST['insurance']);
-
-            $weight = $type === 'letter' 
-                ? 0.02 * (int)($_POST['letter_count'] ?? 1)
-                : max((float)$_POST['weight'], 0); // Remove volume weight calculation since gabarit is removed
-
-            $max_weight = $carrier['max_weight']; // Remove gabarit-based weight increase
-
-            if ($weight > $max_weight) {
-                $error = "Вес превышает лимит оператора ($max_weight кг)!";
-            } else {
-                $cost = $carrier['base_cost'] 
-                      + $weight * $carrier['cost_per_kg'] 
-                      + $distance * $carrier['cost_per_km'];
-
-                if ($insurance) $cost *= 1.02; // Remove gabarit and speed cost calculations
-                if ($type === 'letter') $cost = max($cost, 2.5);
-
-                $cost = round($cost, 2);
-                $hours = round($base_hours, 1);
-
-                $result = [
-                    'carrier' => $carrier,
-                    'cost' => $cost,
-                    'hours' => $hours,
-                    'distance' => $distance
-                ];
-            }
-        }
-    }
-}
 ?>
 <!DOCTYPE html>
 <html lang="ru">
@@ -126,7 +113,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <title>Почтовый калькулятор</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="assets/css/style.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        #map { height: 500px; width: 100%; }
+        .office-marker { cursor: pointer; }
+        .search-container { margin-bottom: 15px; }
+        .selected-office { background-color: #e7f3ff; padding: 10px; border-radius: 5px; margin-bottom: 10px; }
+        .change-button { margin-left: 10px; }
+        .office-marker-icon {
+            background-color: #fff;
+            border: 2px solid #007cba;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .office-marker-selected {
+            background-color: #ff6b6b !important;
+            border-color: #d63031 !important;
+        }
+    </style>
 </head>
 <body class="d-flex flex-column min-vh-100">
 <nav class="navbar navbar-dark bg-primary shadow-lg">
@@ -157,74 +168,101 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php endforeach; ?>
     </div>
 
-    <div class="card mt-5 shadow-lg" id="calc-form" style="display:<?= (isset($_POST['carrier']) || isset($_GET['carrier'])) ? 'block' : 'none' ?>;">
+    <div class="card mt-5 shadow-lg" id="calc-form" style="display:<?=(isset($_POST['carrier']) || isset($_GET['carrier'])) ? 'block' : 'none' ?>;">
         <div class="card-body">
-            <h4 class="text-center mb-4">Расчёт для: <strong id="carrier-name"><?= isset($_POST['carrier']) ? htmlspecialchars($carriers[array_search($_POST['carrier'], array_column($carriers, 'id'))]['name'] ?? '') : (isset($_GET['carrier']) ? htmlspecialchars($carriers[array_search($_GET['carrier'], array_column($carriers, 'id'))]['name'] ?? '') : '') ?></strong></h4>
-            <form method="POST">
-                <input type="hidden" name="carrier" id="selected-carrier" value="<?= $_POST['carrier'] ?? $_GET['carrier'] ?? '' ?>">
-                <input type="hidden" name="from" id="selected-from" value="<?= $_POST['from'] ?? $_GET['from'] ?? '' ?>">
-                <input type="hidden" name="to" id="selected-to" value="<?= $_POST['to'] ?? $_GET['to'] ?? '' ?>">
+            <h4 class="text-center mb-4">Расчёт для: <strong id="carrier-name"><?=(isset($_POST['carrier']) ? htmlspecialchars($carriers[array_search($_POST['carrier'], array_column($carriers, 'id'))]['name'] ?? '') : (isset($_GET['carrier']) ? htmlspecialchars($carriers[array_search($_GET['carrier'], array_column($carriers, 'id'))]['name'] ?? '') : ''))?></strong></h4>
+            
+            <!-- Поле для ввода адреса получателя -->
+            <div class="row g-3 mb-4">
+                <div class="col-md-12">
+                    <label>Адрес получателя</label>
+                    <input type="text" id="recipient-address" class="form-control" placeholder="Введите адрес получателя">
+                </div>
+            </div>
+            
+            <!-- Карта -->
+            <div class="row g-3 mb-4">
+                <div class="col-md-12">
+                    <div id="map"></div>
+                </div>
+            </div>
+            
+            <!-- Поиск отделений -->
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <label>Поиск отделений для отправки</label>
+                    <div class="search-container">
+                        <input type="text" id="search-from" class="form-control" placeholder="Найти отделение для отправки...">
+                        <div id="search-results-from" class="mt-2" style="max-height: 200px; overflow-y: auto;"></div>
+                    </div>
+                    
+                    <!-- Отделение для отправки -->
+                    <div id="selected-from-container" class="selected-office" style="display: none;">
+                        <strong>Отделение для отправки:</strong> <span id="selected-from-text"></span>
+                        <button type="button" class="btn btn-sm btn-outline-secondary change-button" onclick="changeFromOffice()">Изменить</button>
+                    </div>
+                    
+                    <button type="button" class="btn btn-info mt-2" onclick="findNearestFromOffice()">Выбрать ближайшее (отправка)</button>
+                </div>
+                
+                <div class="col-md-6">
+                    <label>Поиск отделений для получения</label>
+                    <div class="search-container">
+                        <input type="text" id="search-to" class="form-control" placeholder="Найти отделение для получения..." disabled>
+                        <div id="search-results-to" class="mt-2" style="max-height: 200px; overflow-y: auto;"></div>
+                    </div>
+                    
+                    <!-- Отделение для получения -->
+                    <div id="selected-to-container" class="selected-office" style="display: none;">
+                        <strong>Отделение для получения:</strong> <span id="selected-to-text"></span>
+                        <button type="button" class="btn btn-sm btn-outline-secondary change-button" onclick="changeToOffice()">Изменить</button>
+                    </div>
+                    
+                    <button type="button" class="btn btn-info mt-2" onclick="findNearestToOffice()" id="find-nearest-to-btn" disabled>Выбрать ближайшее (получение)</button>
+                </div>
+            </div>
+            
+            <div class="row g-3 mb-4">
+                <div class="col-md-12 text-center">
+                    <button type="button" class="btn btn-success btn-lg" onclick="showRoute()" id="show-route-btn" disabled>Показать маршрут</button>
+                    <button type="button" class="btn btn-primary ms-2" onclick="showFormula()" id="show-formula-btn" disabled>Формула расчета</button>
+                </div>
+            </div>
+            
+            <!-- Форма для остальных параметров -->
+            <form method="POST" id="calculation-form">
+                <input type="hidden" name="carrier" id="selected-carrier" value="<?=$_POST['carrier'] ?? $_GET['carrier'] ?? ''?>">
+                <input type="hidden" name="from" id="selected-from" value="<?=$_POST['from'] ?? $_GET['from'] ?? ''?>">
+                <input type="hidden" name="to" id="selected-to" value="<?=$_POST['to'] ?? $_GET['to'] ?? ''?>">
 
                 <div class="row g-3">
-                    <div class="col-md-6">
-                        <label>Откуда</label>
-                        <select name="from" id="from-select" class="form-select" required onchange="document.getElementById('selected-from').value = this.value;">
-                            <option value="">Выберите</option>
-                            <?php 
-                            $carrier_id = $_POST['carrier'] ?? $_GET['carrier'] ?? null;
-                            if ($carrier_id) {
-                                $carrier_id = (int)$carrier_id;
-                                $offices = $db->query("SELECT * FROM offices WHERE carrier_id = $carrier_id ORDER BY city, address")->fetchAll();
-                                foreach($offices as $o): 
-                            ?>
-                                <option value="<?= $o['id'] ?>" <?= (($_POST['from'] ?? $_GET['from'] ?? '') == $o['id']) ? 'selected' : '' ?>><?= htmlspecialchars($o['city']) ?> — <?= htmlspecialchars($o['address']) ?></option>
-                            <?php endforeach; } ?>
-                        </select>
-                    </div>
-                    <div class="col-md-6">
-                        <label>Куда</label>
-                        <select name="to" id="to-select" class="form-select" required onchange="document.getElementById('selected-to').value = this.value;">
-                            <option value="">Выберите</option>
-                            <?php 
-                            if ($carrier_id) {
-                                $carrier_id = (int)$carrier_id;
-                                $offices = $db->query("SELECT * FROM offices WHERE carrier_id = $carrier_id ORDER BY city, address")->fetchAll();
-                                foreach($offices as $o): 
-                            ?>
-                                <option value="<?= $o['id'] ?>" <?= (($_POST['to'] ?? $_GET['to'] ?? '') == $o['id']) ? 'selected' : '' ?>><?= htmlspecialchars($o['city']) ?> — <?= htmlspecialchars($o['address']) ?></option>
-                            <?php endforeach; } ?>
-                        </select>
-                    </div>
-
                     <div class="col-md-4">
                         <label>Тип отправления</label>
                         <select name="package_type" class="form-select" onchange="toggleFields(this.value)" required>
-                            <option value="parcel" <?= (($_POST['package_type'] ?? $_GET['package_type'] ?? '') == 'parcel') ? 'selected' : '' ?>>Посылка</option>
-                            <option value="letter" <?= (($_POST['package_type'] ?? $_GET['package_type'] ?? '') == 'letter') ? 'selected' : '' ?>>Письмо</option>
+                            <option value="parcel" <?=((($_POST['package_type'] ?? $_GET['package_type'] ?? '') == 'parcel') ? 'selected' : '')?>>Посылка</option>
+                            <option value="letter" <?=((($_POST['package_type'] ?? $_GET['package_type'] ?? '') == 'letter') ? 'selected' : '')?>>Письмо</option>
                         </select>
                     </div>
 
-                    <div class="col-md-4" id="weight-div" style="<?= (($_POST['package_type'] ?? $_GET['package_type'] ?? '') == 'letter') ? 'display:none;' : '' ?>">
+                    <div class="col-md-4" id="weight-div" style="<?=((($_POST['package_type'] ?? $_GET['package_type'] ?? '') == 'letter') ? 'display:none;' : '')?>">
                         <label>Вес (кг)</label>
-                        <input type="number" step="0.1" name="weight" class="form-control" value="<?= $_POST['weight'] ?? $_GET['weight'] ?? '1' ?>" min="0.1" required>
+                        <input type="number" step="0.1" name="weight" class="form-control" value="<?=$_POST['weight'] ?? $_GET['weight'] ?? '1'?>" min="0.1" required>
                     </div>
 
-                    <div class="col-md-4" id="letter-div" style="<?= (($_POST['package_type'] ?? $_GET['package_type'] ?? '') == 'letter') ? '' : 'display:none;' ?>">
+                    <div class="col-md-4" id="letter-div" style="<?=((($_POST['package_type'] ?? $_GET['package_type'] ?? '') == 'letter') ? '' : 'display:none;'?>">
                         <label>Количество писем</label>
-                        <input type="number" name="letter_count" class="form-control" value="<?= $_POST['letter_count'] ?? $_GET['letter_count'] ?? '1' ?>" min="1" max="50">
+                        <input type="number" name="letter_count" class="form-control" value="<?=$_POST['letter_count'] ?? $_GET['letter_count'] ?? '1'?>" min="1" max="50">
                     </div>
-
-
 
                     <div class="col-md-4 d-flex align-items-end">
                         <div class="form-check">
-                            <input type="checkbox" name="insurance" class="form-check-input" id="ins" <?= (isset($_POST['insurance']) || isset($_GET['insurance'])) ? 'checked' : '' ?>>
+                            <input type="checkbox" name="insurance" class="form-check-input" id="ins" <?=((isset($_POST['insurance']) || isset($_GET['insurance'])) ? 'checked' : '')?>>
                             <label class="form-check-label" for="ins">Страховка (+2%)</label>
                         </div>
                     </div>
                 </div>
 
-                <button type="submit" class="btn btn-success btn-lg mt-4 w-100">Рассчитать</button>
+                <button type="submit" class="btn btn-success btn-lg mt-4 w-100" id="calculate-btn" disabled>Рассчитать</button>
             </form>
         </div>
     </div>
@@ -250,38 +288,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         $all_results = [];
         foreach($carriers as $c) {
-            $pathData = dijkstra($graph, $from, $to);
-            if ($pathData) {
-                $distance = $pathData['distance'];
-                $base_hours = $distance / $c['speed_kmh'];
+            $routeData = getRouteBetweenOffices($db, $from, $to);
+            if ($routeData) {
+                $distance = $routeData['distance'];
+                $duration_min = $routeData['duration'];
+                $base_hours = $duration_min / 60;
 
                 $type = $_POST['package_type'];
-                $gabarit = $_POST['gabarit'] ?? 'small';
-                $speed = $_POST['delivery_speed'] ?? 'standard';
                 $insurance = isset($_POST['insurance']);
-
-                $volume_weight = 0;
-                if ($type === 'parcel') {
-                    if ($gabarit === 'medium') $volume_weight = 8;
-                    if ($gabarit === 'large') $volume_weight = 20;
-                }
 
                 $weight = $type === 'letter' 
                     ? 0.02 * (int)($_POST['letter_count'] ?? 1)
-                    : max((float)$_POST['weight'], $volume_weight);
+                    : max((float)$_POST['weight'], 0);
 
                 $max_weight = $c['max_weight'];
-                if ($gabarit === 'medium') $max_weight += 8;
-                if ($gabarit === 'large') $max_weight += 20;
 
                 if ($weight <= $max_weight) {
                     $cost = $c['base_cost'] 
                           + $weight * $c['cost_per_kg'] 
                           + $distance * $c['cost_per_km'];
 
-                    if ($gabarit === 'medium') $cost += 6;
-                    if ($gabarit === 'large') $cost += 15;
-                    if ($speed === 'express') { $cost *= 1.25; $base_hours *= 0.7; }
                     if ($insurance) $cost *= 1.02;
                     if ($type === 'letter') $cost = max($cost, 2.5);
 
@@ -319,34 +345,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="card-header bg-secondary text-white">
             <h4>Сравнение операторов</h4>
             <div class="btn-group" role="group">
-                <a href="?filter=all&carrier=<?= $_POST['carrier'] ?? $_GET['carrier'] ?? '' ?>&from=<?= $_POST['from'] ?? $_GET['from'] ?? '' ?>&to=<?= $_POST['to'] ?? $_GET['to'] ?? '' ?>&package_type=<?= $_POST['package_type'] ?? $_GET['package_type'] ?? '' ?>&weight=<?= $_POST['weight'] ?? $_GET['weight'] ?? ($_POST['package_type'] === 'letter' ? ($_POST['letter_count'] ?? $_GET['letter_count'] ?? 1) * 0.02 : '') ?>&letter_count=<?= $_POST['letter_count'] ?? $_GET['letter_count'] ?? '' ?>&gabarit=<?= $_POST['gabarit'] ?? $_GET['gabarit'] ?? 'small' ?>&delivery_speed=<?= $_POST['delivery_speed'] ?? $_GET['delivery_speed'] ?? 'standard' ?>&insurance=<?= isset($_POST['insurance']) || isset($_GET['insurance']) ? '1' : '0' ?>" class="btn btn-sm <?= $active_filter === 'all' ? 'btn-primary' : 'btn-outline-light' ?>">Все</a>
-                <a href="?filter=cheapest&carrier=<?= $_POST['carrier'] ?? $_GET['carrier'] ?? '' ?>&from=<?= $_POST['from'] ?? $_GET['from'] ?? '' ?>&to=<?= $_POST['to'] ?? $_GET['to'] ?? '' ?>&package_type=<?= $_POST['package_type'] ?? $_GET['package_type'] ?? '' ?>&weight=<?= $_POST['weight'] ?? $_GET['weight'] ?? ($_POST['package_type'] === 'letter' ? ($_POST['letter_count'] ?? $_GET['letter_count'] ?? 1) * 0.02 : '') ?>&letter_count=<?= $_POST['letter_count'] ?? $_GET['letter_count'] ?? '' ?>&gabarit=<?= $_POST['gabarit'] ?? $_GET['gabarit'] ?? 'small' ?>&delivery_speed=<?= $_POST['delivery_speed'] ?? $_GET['delivery_speed'] ?? 'standard' ?>&insurance=<?= isset($_POST['insurance']) || isset($_GET['insurance']) ? '1' : '0' ?>" class="btn btn-sm <?= $active_filter === 'cheapest' ? 'btn-success' : 'btn-outline-light' ?>">Самый дешевый</a>
-                <a href="?filter=fastest&carrier=<?= $_POST['carrier'] ?? $_GET['carrier'] ?? '' ?>&from=<?= $_POST['from'] ?? $_GET['from'] ?? '' ?>&to=<?= $_POST['to'] ?? $_GET['to'] ?? '' ?>&package_type=<?= $_POST['package_type'] ?? $_GET['package_type'] ?? '' ?>&weight=<?= $_POST['weight'] ?? $_GET['weight'] ?? ($_POST['package_type'] === 'letter' ? ($_POST['letter_count'] ?? $_GET['letter_count'] ?? 1) * 0.02 : '') ?>&letter_count=<?= $_POST['letter_count'] ?? $_GET['letter_count'] ?? '' ?>&gabarit=<?= $_POST['gabarit'] ?? $_GET['gabarit'] ?? 'small' ?>&delivery_speed=<?= $_POST['delivery_speed'] ?? $_GET['delivery_speed'] ?? 'standard' ?>&insurance=<?= isset($_POST['insurance']) || isset($_GET['insurance']) ? '1' : '0' ?>" class="btn btn-sm <?= $active_filter === 'fastest' ? 'btn-info' : 'btn-outline-light' ?>">Самый быстрый</a>
+                <a href="?filter=all&carrier=<?= $_POST['carrier'] ?? $_GET['carrier'] ?? '' ?>&from=<?= $_POST['from'] ?? $_GET['from'] ?? '' ?>&to=<?= $_POST['to'] ?? $_GET['to'] ?? '' ?>&package_type=<?= $_POST['package_type'] ?? $_GET['package_type'] ?? '' ?>&weight=<?= $_POST['weight'] ?? $_GET['weight'] ?? ($_POST['package_type'] === 'letter' ? ($_POST['letter_count'] ?? $_GET['letter_count'] ?? 1) * 0.02 : '') ?>&letter_count=<?= $_POST['letter_count'] ?? $_GET['letter_count'] ?? '' ?>&insurance=<?= isset($_POST['insurance']) || isset($_GET['insurance']) ? '1' : '0' ?>" class="btn btn-sm <?= $active_filter === 'all' ? 'btn-primary' : 'btn-outline-light' ?>">Все</a>
+                <a href="?filter=cheapest&carrier=<?= $_POST['carrier'] ?? $_GET['carrier'] ?? '' ?>&from=<?= $_POST['from'] ?? $_GET['from'] ?? '' ?>&to=<?= $_POST['to'] ?? $_GET['to'] ?? '' ?>&package_type=<?= $_POST['package_type'] ?? $_GET['package_type'] ?? '' ?>&weight=<?= $_POST['weight'] ?? $_GET['weight'] ?? ($_POST['package_type'] === 'letter' ? ($_POST['letter_count'] ?? $_GET['letter_count'] ?? 1) * 0.02 : '') ?>&letter_count=<?= $_POST['letter_count'] ?? $_GET['letter_count'] ?? '' ?>&insurance=<?= isset($_POST['insurance']) || isset($_GET['insurance']) ? '1' : '0' ?>" class="btn btn-sm <?= $active_filter === 'cheapest' ? 'btn-primary' : 'btn-outline-light' ?>">Самый дешевый</a>
+                <a href="?filter=fastest&carrier=<?= $_POST['carrier'] ?? $_GET['carrier'] ?? '' ?>&from=<?= $_POST['from'] ?? $_GET['from'] ?? '' ?>&to=<?= $_POST['to'] ?? $_GET['to'] ?? '' ?>&package_type=<?= $_POST['package_type'] ?? $_GET['package_type'] ?? '' ?>&weight=<?= $_POST['weight'] ?? $_GET['weight'] ?? ($_POST['package_type'] === 'letter' ? ($_POST['letter_count'] ?? $_GET['letter_count'] ?? 1) * 0.02 : '') ?>&letter_count=<?= $_POST['letter_count'] ?? $_GET['letter_count'] ?? '' ?>&insurance=<?= isset($_POST['insurance']) || isset($_GET['insurance']) ? '1' : '0' ?>" class="btn btn-sm <?= $active_filter === 'fastest' ? 'btn-primary' : 'btn-outline-light' ?>">Самый быстрый</a>
             </div>
         </div>
         <div class="card-body">
             <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead class="table-dark">
+                <table class="table table-striped">
+                    <thead>
                         <tr>
                             <th>Оператор</th>
                             <th>Стоимость</th>
                             <th>Время доставки</th>
                             <th>Расстояние</th>
-                            <th>Действия</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach($results_to_show as $res): ?>
+                        <?php foreach($results_to_show as $r): ?>
                         <tr>
-                            <td style="color: <?= $res['carrier']['color'] ?>"><strong><?= htmlspecialchars($res['carrier']['name']) ?></strong></td>
-                            <td><strong><?= $res['cost'] ?> BYN</strong></td>
-                            <td>~<?= formatDeliveryTime($res['hours']) ?></td>
-                            <td><?= round($res['distance']) ?> км</td>
-                            <td>
-                                <a href="order_form.php?carrier=<?= $res['carrier']['id'] ?>&weight=<?= ($_POST['package_type'] === 'letter' ? ($_POST['letter_count'] ?? 1) * 0.02 : $_POST['weight'] ?? 1) ?>&cost=<?= $res['cost'] ?>&from=<?= $_POST['from'] ?>&to=<?= $_POST['to'] ?>" 
-                                   class="btn btn-sm btn-success">Оформить</a>
-                            </td>
+                            <td style="background: <?= $r['carrier']['color'] ?>; color: white;"><?= htmlspecialchars($r['carrier']['name']) ?></td>
+                            <td><?= $r['cost'] ?> BYN</td>
+                            <td><?= formatDeliveryTime($r['hours']) ?></td>
+                            <td><?= round($r['distance']) ?> км</td>
                         </tr>
                         <?php endforeach; ?>
                     </tbody>
@@ -354,261 +375,430 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         </div>
     </div>
-    <?php
-        }
-    }
-    ?>
-
-    <?php if($error): ?>
-    <div class="alert alert-danger mt-4"><?= $error ?></div>
-    <?php endif; ?>
+    <?php }} ?>
 </div>
 
-<!-- Footer -->
-<footer class="footer mt-auto py-3" style="background-color: rgba(0,0,0,0.05);">
-    <div class="container text-center text-muted">
-        <p class="mb-1" style="opacity: 0.5; color: #999 !important;">&copy; 2025 Служба доставки. Все права защищены.</p>
-        <p class="mb-1" style="opacity: 0.5; color: #999 !important;">Контактный телефон: +375-25-005-50-50</p>
-        <p class="mb-0" style="opacity: 0.5; color: #999 !important;">Email: freedeliverya@gmail.com</p>
-    </div>
-</footer>
-
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-let selected = null;
+let map = null;
+let markers = [];
+let routeLayer = null;
+let selectedCarrierId = null;
+let selectedFromOffice = null;
+let selectedToOffice = null;
+let offices = [];
 
-function selectCarrier(id, name) {
-    if (selected) selected.classList.remove('selected');
-    const card = event.currentTarget;
-    card.classList.add('selected');
-    selected = card;
+// Инициализация карты
+function initMap() {
+    if (!map) {
+        map = L.map('map').setView([53.904133, 27.557541], 6); // Центр Беларуси
 
-    document.getElementById('selected-carrier').value = id;
-    document.getElementById('carrier-name').textContent = name;
-    document.getElementById('calc-form').style.display = 'block';
-
-    // Load offices with search functionality
-    fetch('get_offices.php?carrier=' + id)
-        .then(r => r.json())
-        .then(data => {
-            ['from', 'to'].forEach(f => {
-                const sel = document.querySelector(`select[name="${f}"]`);
-                sel.innerHTML = '<option value="">Выберите</option>' + 
-                    data.map(o => `<option value="${o.id}">${o.city} — ${o.address}</option>`).join('');
-            });
-            
-            // Initialize search for newly loaded selects
-            const fromSelect = document.querySelector('select[name="from"]');
-            const toSelect = document.querySelector('select[name="to"]');
-            
-            // Remove existing search functionality if it exists to prevent duplication
-            if (fromSelect && fromSelect.parentNode && fromSelect.parentNode.classList.contains('custom-select-wrapper')) {
-                const wrapper = fromSelect.parentNode;
-                const parent = wrapper.parentNode;
-                parent.replaceChild(fromSelect, wrapper);
-                fromSelect.style.display = 'block'; // Show the original select again
-            }
-            if (toSelect && toSelect.parentNode && toSelect.parentNode.classList.contains('custom-select-wrapper')) {
-                const wrapper = toSelect.parentNode;
-                const parent = wrapper.parentNode;
-                parent.replaceChild(toSelect, wrapper);
-                toSelect.style.display = 'block'; // Show the original select again
-            }
-            
-            // Add search functionality to the selects
-            if (fromSelect) addSearchToSelect(fromSelect);
-            if (toSelect) addSearchToSelect(toSelect);
-        });
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+    }
 }
 
-// Add search functionality to select elements with collapsible dropdown
-function addSearchToSelect(selectElement) {
-    // Check if selectElement is already wrapped - if so, do nothing to prevent duplication
-    if (selectElement.parentNode && selectElement.parentNode.classList.contains('custom-select-wrapper')) {
-        // If it's already wrapped, just update the search functionality
-        const searchInput = selectElement.parentNode.querySelector('input[type="text"]');
-        if (searchInput) {
-            // Update the search input with current selected value
-            if (selectElement.value) {
-                const selectedOption = selectElement.options[selectElement.selectedIndex];
-                if (selectedOption) {
-                    searchInput.value = selectedOption.text;
-                }
-            }
+// Загрузка офисов для выбранного оператора
+function loadOffices(carrierId) {
+    fetch(`get_offices.php?carrier_id=${carrierId}`)
+        .then(response => response.json())
+        .then(data => {
+            offices = data;
+            updateMapOffices();
+        })
+        .catch(error => console.error('Error loading offices:', error));
+}
+
+// Обновление офисов на карте
+function updateMapOffices() {
+    // Удаляем старые маркеры
+    markers.forEach(marker => map.removeLayer(marker));
+    markers = [];
+
+    // Добавляем новые маркеры
+    offices.forEach(office => {
+        if (office.lat && office.lng) {
+            const marker = L.marker([office.lat, office.lng]).addTo(map);
+            marker.officeId = office.id;
+            marker.officeData = office;
+            
+            marker.bindPopup(`
+                <b>${office.city}</b><br>
+                ${office.address}<br>
+                <button class="btn btn-sm btn-primary mt-1" onclick="selectFromOffice(${office.id}, '${office.city}', '${office.address.replace(/'/g, "\\'")}')">Выбрать как отправку</button>
+                <button class="btn btn-sm btn-success mt-1 ms-1" onclick="selectToOffice(${office.id}, '${office.city}', '${office.address.replace(/'/g, "\\'")}')">Выбрать как получение</button>
+            `);
+            
+            marker.on('click', function() {
+                // Подсветка маркера
+                markers.forEach(m => {
+                    if (m._icon) m._icon.classList.remove('office-marker-selected');
+                });
+                if (this._icon) this._icon.classList.add('office-marker-selected');
+            });
+            
+            markers.push(marker);
         }
+    });
+}
+
+// Выбор оператора
+function selectCarrier(carrierId, carrierName) {
+    selectedCarrierId = carrierId;
+    document.getElementById('carrier-name').textContent = carrierName;
+    document.getElementById('selected-carrier').value = carrierId;
+    document.getElementById('calc-form').style.display = 'block';
+    
+    loadOffices(carrierId);
+}
+
+// Выбор офиса для отправки
+function selectFromOffice(officeId, city, address) {
+    selectedFromOffice = officeId;
+    document.getElementById('selected-from').value = officeId;
+    document.getElementById('selected-from-text').textContent = `${city} — ${address}`;
+    document.getElementById('selected-from-container').style.display = 'block';
+    
+    // Активируем поле для получения
+    document.getElementById('search-to').disabled = false;
+    document.getElementById('find-nearest-to-btn').disabled = false;
+    
+    // Активируем кнопку показа маршрута если выбраны оба офиса
+    if (selectedToOffice) {
+        document.getElementById('show-route-btn').disabled = false;
+        document.getElementById('calculate-btn').disabled = false;
+    }
+}
+
+// Выбор офиса для получения
+function selectToOffice(officeId, city, address) {
+    selectedToOffice = officeId;
+    document.getElementById('selected-to').value = officeId;
+    document.getElementById('selected-to-text').textContent = `${city} — ${address}`;
+    document.getElementById('selected-to-container').style.display = 'block';
+    
+    // Активируем кнопку показа маршрута если выбраны оба офиса
+    if (selectedFromOffice) {
+        document.getElementById('show-route-btn').disabled = false;
+        document.getElementById('calculate-btn').disabled = false;
+    }
+}
+
+// Изменение офиса отправки
+function changeFromOffice() {
+    selectedFromOffice = null;
+    document.getElementById('selected-from').value = '';
+    document.getElementById('selected-from-container').style.display = 'none';
+    document.getElementById('show-route-btn').disabled = true;
+    document.getElementById('calculate-btn').disabled = true;
+    
+    // Деактивируем поле для получения
+    document.getElementById('search-to').disabled = true;
+    document.getElementById('find-nearest-to-btn').disabled = true;
+    document.getElementById('selected-to-container').style.display = 'none';
+    selectedToOffice = null;
+    document.getElementById('selected-to').value = '';
+    
+    // Удаляем маршрут если он был
+    if (routeLayer) {
+        map.removeLayer(routeLayer);
+        routeLayer = null;
+    }
+}
+
+// Изменение офиса получения
+function changeToOffice() {
+    selectedToOffice = null;
+    document.getElementById('selected-to').value = '';
+    document.getElementById('selected-to-container').style.display = 'none';
+    document.getElementById('show-route-btn').disabled = true;
+    document.getElementById('calculate-btn').disabled = true;
+    
+    // Удаляем маршрут если он был
+    if (routeLayer) {
+        map.removeLayer(routeLayer);
+        routeLayer = null;
+    }
+}
+
+// Поиск ближайшего офиса отправки
+function findNearestFromOffice() {
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(function(position) {
+            const userLat = position.coords.latitude;
+            const userLng = position.coords.longitude;
+            
+            // Находим ближайший офис
+            let nearestOffice = null;
+            let minDistance = Infinity;
+            
+            offices.forEach(office => {
+                if (office.lat && office.lng) {
+                    const distance = Math.sqrt(
+                        Math.pow(office.lat - userLat, 2) + 
+                        Math.pow(office.lng - userLng, 2)
+                    );
+                    
+                    if (distance < minDistance) {
+                        minDistance = distance;
+                        nearestOffice = office;
+                    }
+                }
+            });
+            
+            if (nearestOffice) {
+                selectFromOffice(nearestOffice.id, nearestOffice.city, nearestOffice.address);
+                // Центрируем карту на выбранном офисе
+                map.setView([nearestOffice.lat, nearestOffice.lng], 13);
+            }
+        }, function() {
+            alert("Не удалось получить ваше местоположение. Пожалуйста, разрешите доступ к геолокации или выберите офис вручную.");
+        });
+    } else {
+        alert("Геолокация не поддерживается вашим браузером. Пожалуйста, выберите офис вручную.");
+    }
+}
+
+// Поиск ближайшего офиса получения
+function findNearestToOffice() {
+    const recipientAddress = document.getElementById('recipient-address').value.trim();
+    
+    if (!recipientAddress) {
+        alert("Пожалуйста, сначала введите адрес получателя.");
         return;
     }
     
-    // Create a wrapper div for the custom select
-    const wrapper = document.createElement('div');
-    wrapper.className = 'custom-select-wrapper';
-    wrapper.style.position = 'relative';
-    
-    // Create input for search
-    const searchInput = document.createElement('input');
-    searchInput.type = 'text';
-    searchInput.className = 'form-control';
-    searchInput.placeholder = 'Поиск...';
-    searchInput.style.marginBottom = '5px';
-    searchInput.style.cursor = 'pointer';
-    searchInput.readOnly = false; // Allow typing for search functionality
-    
-    // Create a dropdown container that's initially hidden
-    const dropdownContainer = document.createElement('div');
-    dropdownContainer.style.position = 'absolute';
-    dropdownContainer.style.top = '40px';
-    dropdownContainer.style.left = '0';
-    dropdownContainer.style.width = '100%';
-    dropdownContainer.style.zIndex = '1000';
-    dropdownContainer.style.backgroundColor = 'white';
-    dropdownContainer.style.border = '1px solid #ced4da';
-    dropdownContainer.style.borderRadius = '0.375rem';
-    dropdownContainer.style.maxHeight = '200px';
-    dropdownContainer.style.overflowY = 'auto';
-    dropdownContainer.style.display = 'none'; // Initially hidden
-    dropdownContainer.style.boxShadow = '0 0.5rem 1rem rgba(0,0,0,0.15)';
-    
-    // Add click event to toggle dropdown visibility
-    searchInput.addEventListener('click', function(e) {
-        e.stopPropagation();
-        const isHidden = dropdownContainer.style.display === 'none';
-        dropdownContainer.style.display = isHidden ? 'block' : 'none';
+    // В реальном приложении здесь должен быть вызов геокодера для получения координат адреса
+    // Для демонстрации просто найдем ближайший офис к отправке
+    if (selectedFromOffice) {
+        // Находим ближайший офис к отправке (в реальности это будет к адресу получателя)
+        let nearestOffice = null;
+        let minDistance = Infinity;
         
-        // If showing, populate with all options
-        if (isHidden) {
-            updateDropdownOptions(selectElement, '');
-        }
-    });
-    
-    // Populate dropdown with options
-    function updateDropdownOptions(originalSelect, searchTerm = '') {
-        dropdownContainer.innerHTML = '';
-        const options = Array.from(originalSelect.options);
-        
-        options.forEach(option => {
-            if (option.value === '') return; // Skip empty option
-            
-            const optionText = option.text.toLowerCase();
-            if (searchTerm === '' || optionText.includes(searchTerm.toLowerCase())) {
-                const optionElement = document.createElement('div');
-                optionElement.textContent = option.text;
-                optionElement.style.padding = '8px 12px';
-                optionElement.style.cursor = 'pointer';
-                optionElement.style.borderBottom = '1px solid #eee';
-                
-                optionElement.addEventListener('click', function() {
-                    originalSelect.value = option.value;
-                    searchInput.value = option.text;
-                    dropdownContainer.style.display = 'none';
+        const fromOffice = offices.find(o => o.id == selectedFromOffice);
+        if (fromOffice) {
+            offices.forEach(office => {
+                if (office.lat && office.lng && office.id != selectedFromOffice) {
+                    const distance = Math.sqrt(
+                        Math.pow(office.lat - fromOffice.lat, 2) + 
+                        Math.pow(office.lng - fromOffice.lng, 2)
+                    );
                     
-                    // Trigger change event on the original select
-                    originalSelect.dispatchEvent(new Event('change'));
-                });
-                
-                optionElement.addEventListener('mouseover', function() {
-                    this.style.backgroundColor = '#f8f9fa';
-                });
-                
-                optionElement.addEventListener('mouseout', function() {
-                    this.style.backgroundColor = 'white';
-                });
-                
-                dropdownContainer.appendChild(optionElement);
-            }
-        });
-    }
-    
-    // Add search event
-    searchInput.addEventListener('input', function() {
-        const searchTerm = this.value;
-        updateDropdownOptions(selectElement, searchTerm);
+                    if (distance < minDistance) {
+                        minDistance = distance;
+                        nearestOffice = office;
+                    }
+                }
+            });
+        }
         
-        // Show dropdown when searching
-        dropdownContainer.style.display = 'block';
-    });
-    
-    // Replace the select with the wrapper
-    selectElement.parentNode.insertBefore(wrapper, selectElement);
-    wrapper.appendChild(searchInput);
-    wrapper.appendChild(dropdownContainer);
-    
-    // Hide the original select
-    selectElement.style.display = 'none';
-    
-    // Initialize with the currently selected value
-    if (selectElement.value) {
-        const selectedOption = selectElement.options[selectElement.selectedIndex];
-        if (selectedOption) {
-            searchInput.value = selectedOption.text;
+        if (nearestOffice) {
+            selectToOffice(nearestOffice.id, nearestOffice.city, nearestOffice.address);
+            // Центрируем карту на выбранном офисе
+            map.setView([nearestOffice.lat, nearestOffice.lng], 13);
         }
     }
-    
-    // Add global click listener to close dropdown when clicking outside
-    document.addEventListener('click', function(e) {
-        if (!wrapper.contains(e.target)) {
-            dropdownContainer.style.display = 'none';
-        }
-    });
 }
 
+// Показ маршрута
+function showRoute() {
+    if (!selectedFromOffice || !selectedToOffice) {
+        alert("Пожалуйста, выберите оба офиса (отправка и получение).");
+        return;
+    }
+    
+    // Удаляем предыдущий маршрут
+    if (routeLayer) {
+        map.removeLayer(routeLayer);
+    }
+    
+    // Получаем координаты офисов
+    const fromOffice = offices.find(o => o.id == selectedFromOffice);
+    const toOffice = offices.find(o => o.id == selectedToOffice);
+    
+    if (fromOffice && toOffice) {
+        // В реальном приложении здесь должен быть вызов API для получения маршрута
+        // Для демонстрации рисуем прямую линию
+        const routeCoords = [
+            [fromOffice.lat, fromOffice.lng],
+            [toOffice.lat, toOffice.lng]
+        ];
+        
+        routeLayer = L.polyline(routeCoords, {color: 'red', weight: 4}).addTo(map);
+        
+        // Центрируем карту на маршруте
+        const bounds = L.latLngBounds(routeCoords);
+        map.fitBounds(bounds, {padding: [50, 50]});
+        
+        // Показываем информацию о маршруте
+        const distance = Math.sqrt(
+            Math.pow(toOffice.lat - fromOffice.lat, 2) + 
+            Math.pow(toOffice.lng - fromOffice.lng, 2)
+        ) * 111; // Приблизительное расстояние в км
+        
+        alert(`Маршрут построен. Приблизительное расстояние: ${distance.toFixed(2)} км.`);
+    }
+}
 
+// Показ формулы расчета
+function showFormula() {
+    if (!selectedFromOffice || !selectedToOffice) {
+        alert("Пожалуйста, выберите оба офиса (отправка и получение).");
+        return;
+    }
+    
+    const carrierId = document.getElementById('selected-carrier').value;
+    const carrier = <?php echo json_encode($carriers); ?>.find(c => c.id == carrierId);
+    
+    if (carrier) {
+        // Получаем информацию о маршруте
+        const fromOffice = offices.find(o => o.id == selectedFromOffice);
+        const toOffice = offices.find(o => o.id == selectedToOffice);
+        
+        if (fromOffice && toOffice) {
+            // В реальном приложении здесь будет информация из базы данных о фактическом маршруте
+            const distance = Math.sqrt(
+                Math.pow(toOffice.lat - fromOffice.lat, 2) + 
+                Math.pow(toOffice.lng - fromOffice.lng, 2)
+            ) * 111; // Приблизительное расстояние в км
+            
+            const formula = `
+                <h5>Формула расчета стоимости доставки</h5>
+                <p><strong>Оператор:</strong> ${carrier.name}</p>
+                <p><strong>Отделение отправки:</strong> ${fromOffice.city} — ${fromOffice.address}</p>
+                <p><strong>Отделение получения:</strong> ${toOffice.city} — ${toOffice.address}</p>
+                <p><strong>Расстояние:</strong> ${distance.toFixed(2)} км</p>
+                <p><strong>Формула:</strong></p>
+                <p>Стоимость = Базовая стоимость + (Вес × Стоимость за кг) + (Расстояние × Стоимость за км)</p>
+                <p>Стоимость = ${carrier.base_cost} + (Вес × ${carrier.cost_per_kg}) + (${distance.toFixed(2)} × ${carrier.cost_per_km})</p>
+                <p><em>Время доставки: Расстояние / Скорость оператора (${carrier.speed_kmh} км/ч)</em></p>
+            `;
+            
+            // Показываем в модальном окне или алерте
+            const div = document.createElement('div');
+            div.innerHTML = formula;
+            div.style.position = 'fixed';
+            div.style.top = '50%';
+            div.style.left = '50%';
+            div.style.transform = 'translate(-50%, -50%)';
+            div.style.backgroundColor = 'white';
+            div.style.padding = '20px';
+            div.style.border = '2px solid #ccc';
+            div.style.borderRadius = '10px';
+            div.style.zIndex = '10000';
+            div.style.maxWidth = '500px';
+            div.style.maxHeight = '80vh';
+            div.style.overflowY = 'auto';
+            
+            const closeBtn = document.createElement('button');
+            closeBtn.textContent = 'Закрыть';
+            closeBtn.style.display = 'block';
+            closeBtn.style.marginTop = '15px';
+            closeBtn.style.padding = '5px 10px';
+            closeBtn.onclick = function() { document.body.removeChild(div); };
+            
+            div.appendChild(closeBtn);
+            document.body.appendChild(div);
+        }
+    }
+}
+
+// Функция для переключения полей в зависимости от типа отправления
 function toggleFields(type) {
-    const isLetter = type === 'letter';
-    document.getElementById('weight-div').style.display = isLetter ? 'none' : 'block';
-    document.getElementById('letter-div').style.display = isLetter ? 'block' : 'none';
-    document.getElementById('gabarit-div').style.display = isLetter ? 'none' : 'block';
-}
-
-// Initialize search for select elements when DOM is loaded if carrier is already selected
-document.addEventListener('DOMContentLoaded', function() {
-    // Check if a carrier is already selected (e.g., from a previous form submission or GET parameter)
-    const selectedCarrier = document.getElementById('selected-carrier');
-    if (selectedCarrier && selectedCarrier.value) {
-        // Initialize search for existing selects
-        const fromSelect = document.querySelector('select[name="from"]');
-        const toSelect = document.querySelector('select[name="to"]');
-        
-        if (fromSelect) addSearchToSelect(fromSelect);
-        if (toSelect) addSearchToSelect(toSelect);
-    }
-});
-
-// Theme functionality for cross-page consistency
-function toggleTheme() {
-    document.body.classList.toggle('dark');
-    // Save theme preference in localStorage
-    const isDark = document.body.classList.contains('dark');
-    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    const weightDiv = document.getElementById('weight-div');
+    const letterDiv = document.getElementById('letter-div');
     
-    // Apply theme to all iframes and child elements
-    applyThemeToPage(isDark ? 'dark' : 'light');
-}
-
-function applyThemeToPage(theme) {
-    // This function ensures theme consistency across the site
-    if (theme === 'dark') {
-        document.body.classList.add('dark');
+    if (type === 'letter') {
+        weightDiv.style.display = 'none';
+        letterDiv.style.display = 'block';
     } else {
-        document.body.classList.remove('dark');
+        weightDiv.style.display = 'block';
+        letterDiv.style.display = 'none';
     }
 }
 
-// Apply saved theme on page load
+// Поиск офисов
+function setupSearch() {
+    // Поиск для отправки
+    const searchFrom = document.getElementById('search-from');
+    searchFrom.addEventListener('input', function() {
+        const searchTerm = this.value.toLowerCase();
+        const filteredOffices = offices.filter(office => 
+            office.city.toLowerCase().includes(searchTerm) || 
+            office.address.toLowerCase().includes(searchTerm)
+        );
+        
+        const resultsContainer = document.getElementById('search-results-from');
+        resultsContainer.innerHTML = filteredOffices.map(office => 
+            `<div class="p-2 border-bottom" style="cursor: pointer;" onclick="selectFromOffice(${office.id}, '${office.city}', '${office.address.replace(/'/g, "\\'")}')">
+                <strong>${office.city}</strong> — ${office.address}
+            </div>`
+        ).join('');
+    });
+    
+    // Поиск для получения
+    const searchTo = document.getElementById('search-to');
+    searchTo.addEventListener('input', function() {
+        const searchTerm = this.value.toLowerCase();
+        const filteredOffices = offices.filter(office => 
+            office.city.toLowerCase().includes(searchTerm) || 
+            office.address.toLowerCase().includes(searchTerm)
+        );
+        
+        const resultsContainer = document.getElementById('search-results-to');
+        resultsContainer.innerHTML = filteredOffices.map(office => 
+            `<div class="p-2 border-bottom" style="cursor: pointer;" onclick="selectToOffice(${office.id}, '${office.city}', '${office.address.replace(/'/g, "\\'")}')">
+                <strong>${office.city}</strong> — ${office.address}
+            </div>`
+        ).join('');
+    });
+}
+
+// Инициализация при загрузке
 document.addEventListener('DOMContentLoaded', function() {
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'dark') {
-        document.body.classList.add('dark');
+    initMap();
+    
+    // Если уже выбран оператор, загружаем офисы
+    const selectedCarrier = document.getElementById('selected-carrier').value;
+    if (selectedCarrier) {
+        selectedCarrierId = parseInt(selectedCarrier);
+        loadOffices(selectedCarrierId);
     }
     
-    // Set up a global theme listener for cross-page consistency
-    window.addEventListener('storage', function(e) {
-        if (e.key === 'theme') {
-            if (e.newValue === 'dark') {
-                document.body.classList.add('dark');
-            } else {
-                document.body.classList.remove('dark');
-            }
+    setupSearch();
+    
+    // Установка начальных значений для полей
+    const fromValue = document.getElementById('selected-from').value;
+    const toValue = document.getElementById('selected-to').value;
+    
+    if (fromValue) {
+        // Если есть выбранное значение отправки, показываем его
+        const fromOffice = offices.find(o => o.id == fromValue);
+        if (fromOffice) {
+            document.getElementById('selected-from-text').textContent = `${fromOffice.city} — ${fromOffice.address}`;
+            document.getElementById('selected-from-container').style.display = 'block';
+            selectedFromOffice = parseInt(fromValue);
+            document.getElementById('search-to').disabled = false;
+            document.getElementById('find-nearest-to-btn').disabled = false;
         }
-    });
+    }
+    
+    if (toValue) {
+        // Если есть выбранное значение получения, показываем его
+        const toOffice = offices.find(o => o.id == toValue);
+        if (toOffice) {
+            document.getElementById('selected-to-text').textContent = `${toOffice.city} — ${toOffice.address}`;
+            document.getElementById('selected-to-container').style.display = 'block';
+            selectedToOffice = parseInt(toValue);
+        }
+    }
+    
+    // Активируем кнопки если выбраны оба офиса
+    if (selectedFromOffice && selectedToOffice) {
+        document.getElementById('show-route-btn').disabled = false;
+        document.getElementById('calculate-btn').disabled = false;
+    }
     
     // Prevent scrolling to top when filter links are clicked
     const filterLinks = document.querySelectorAll('.btn-group a');
@@ -619,7 +809,7 @@ document.addEventListener('DOMContentLoaded', function() {
             sessionStorage.setItem('scrollPosition', window.scrollY);
         });
     });
-    
+
     // Restore scroll position if available
     const scrollPosition = sessionStorage.getItem('scrollPosition');
     if (scrollPosition) {
