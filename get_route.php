@@ -46,15 +46,15 @@ if (!$from_office || !$to_office) {
     exit;
 }
 
-// Use Open Source Routing Machine via openrouteservice.org (free tier available)
-// For truly free and open solution without API key, we'll use a public routing service
-// that doesn't require registration and is reliable
-$route_url = "https://router.project-osrm.org/route/v1/driving/{$from_office['lng']},{$from_office['lat']};{$to_office['lng']},{$to_office['lat']}?overview=full&geometries=geojson";
+// Use OSRM for route calculation
+// For this example, I'll use a public OSRM instance (project-osrm.org)
+// In production, you should run your own OSRM server
+$osrm_url = "https://router.project-osrm.org/route/v1/driving/{$from_office['lng']},{$from_office['lat']};{$to_office['lng']},{$to_office['lat']}?overview=full&steps=true";
 
 $ch = curl_init();
-curl_setopt($ch, CURLOPT_URL, $route_url);
+curl_setopt($ch, CURLOPT_URL, $osrm_url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+curl_setopt($ch, CURLOPT_TIMEOUT, 10);
 curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
 curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
 
@@ -92,23 +92,14 @@ if ($response === false) {
 $route_data = json_decode($response, true);
 
 if (!$route_data || !isset($route_data['routes']) || empty($route_data['routes'])) {
-    echo json_encode(['error' => 'No route found: ' . ($route_data['message'] ?? 'Unknown error')]);
+    echo json_encode(['error' => 'No route found']);
     exit;
 }
 
 $route = $route_data['routes'][0];
 $distance_km = $route['distance'] / 1000; // Convert meters to kilometers
 $duration_min = (int)($route['duration'] / 60); // Convert seconds to minutes
-
-// Extract geometry from geojson format
-$geometry = null;
-if (isset($route['geometry']) && isset($route['geometry']['coordinates'])) {
-    // GeoJSON format: [longitude, latitude] pairs, need to convert to [latitude, longitude]
-    $coords = $route['geometry']['coordinates'];
-    $geometry = array_map(function($coord) {
-        return [$coord[1], $coord[0]]; // [lat, lng] format for Leaflet
-    }, $coords);
-}
+$geometry = $route['geometry'] ?? null;
 
 // Save route to database
 $stmt = $db->prepare("INSERT INTO calculated_routes (from_office_id, to_office_id, distance_km, duration_min, route_data) VALUES (?, ?, ?, ?, ?)");

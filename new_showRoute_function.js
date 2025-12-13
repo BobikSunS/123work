@@ -36,18 +36,11 @@ function showRoute() {
 
         if (data.success) {
             if (data.route_data) {
-                let routeCoords;
+                // Декодируем маршрут из polyline
+                const decodedRoute = L.PolylineUtil.decode(data.route_data);
                 
-                // Check if route_data is in GeoJSON format (array of [lat, lng])
-                if (Array.isArray(data.route_data) && data.route_data.length > 0) {
-                    // Direct coordinate array format: [[lat, lng], [lat, lng], ...]
-                    routeCoords = data.route_data;
-                } else {
-                    // Fallback to polyline decoding if needed
-                    const decodedRoute = L.PolylineUtil.decode(data.route_data);
-                    // Convert from [lng, lat] to [lat, lng] format for Leaflet
-                    routeCoords = decodedRoute.map(coord => [coord[1], coord[0]]);
-                }
+                // Преобразуем координаты из [lng, lat] в [lat, lng] формат Leaflet
+                const routeCoords = decodedRoute.map(coord => [coord[1], coord[0]]);
 
                 routeLayer = L.polyline(routeCoords, {color: 'red', weight: 4}).addTo(map);
 
