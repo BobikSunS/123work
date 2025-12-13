@@ -249,7 +249,7 @@ function formatDeliveryTime($hours) {
                         <input type="number" step="0.1" name="weight" class="form-control" value="<?=$_POST['weight'] ?? $_GET['weight'] ?? '1'?>" min="0.1" required>
                     </div>
 
-                    <div class="col-md-4" id="letter-div" style="<?=((($_POST['package_type'] ?? $_GET['package_type'] ?? '') == 'letter') ? '' : 'display:none;'?>">
+                    <div class="col-md-4" id="letter-div" style="<?=(($_POST['package_type'] ?? $_GET['package_type'] ?? '') == 'letter') ? '' : 'display:none;'?>">
                         <label>Количество писем</label>
                         <input type="number" name="letter_count" class="form-control" value="<?=$_POST['letter_count'] ?? $_GET['letter_count'] ?? '1'?>" min="1" max="50">
                     </div>
