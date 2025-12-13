@@ -40,8 +40,17 @@ $letter_count = 1; // по умолчанию
 // Попробуем определить тип посылки из данных заказа, если возможно
 // В большинстве случаев тип не сохраняется в заказе, поэтому используем универсальный расчет
 
-$result = calculateDeliveryCost($db, $order['carrier_id'], $order['from_office'], $order['to_office'], $order['weight'], $package_type, !empty($order['insurance']), $letter_count, !empty($order['packaging']), !empty($order['fragile']));
+$result = calculateDeliveryCost($db, $order['carrier_id'], $order['from_office'], $order['to_office'], $order['weight'], $package_type, !empty($order['insurance']), $letter_count, !empty($order['packaging']), !empty($order['fragile']), true);
 $calculated_total = $result['cost'];
+$breakdown = $result['breakdown'];
+
+// Extract individual cost components
+$base_cost = $breakdown['base_cost'];
+$weight_cost = $breakdown['weight_cost'];
+$distance_cost = $breakdown['distance_cost'];
+$insurance_cost = $breakdown['insurance_cost'];
+$packaging_cost = $breakdown['packaging_cost'];
+$fragile_cost = $breakdown['fragile_cost'];
 
 // Generate PDF content
 $pdf_content = "
@@ -124,7 +133,7 @@ $pdf_content = "
         
         <h4>Расшифровка стоимости:</h4>
         <div class='cost-item'><span>Базовая стоимость:</span> <span>" . number_format($base_cost, 2) . " BYN</span></div>
-        <div class='cost-item'><span>Доставка (" . $order['weight'] . " кг × " . number_format($carrier['cost_per_kg'] ?? 0, 2) . " BYN/кг):</span> <span>" . number_format($weight_cost, 2) . " BYN</span></div>";
+        <div class='cost-item'><span>Доставка ({$order['weight']} кг × " . number_format($carrier['cost_per_kg'] ?? 0, 3) . " BYN/кг + {$result['distance']} км × " . number_format($carrier['cost_per_km'] ?? 0, 4) . " BYN/км):</span> <span>" . number_format($weight_cost + $distance_cost, 2) . " BYN</span></div>";
         
         if (!empty($order['insurance'])) {
             $pdf_content .= "
