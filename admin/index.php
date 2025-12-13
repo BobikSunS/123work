@@ -96,10 +96,17 @@ if (isset($_POST['action']) && $_POST['action'] === 'add_office') {
     $carrier_id = (int)($_POST['carrier_id'] ?? 0);
     $city = trim($_POST['city'] ?? '');
     $address = trim($_POST['address'] ?? '');
+    $lat = !empty($_POST['lat']) ? floatval($_POST['lat']) : null;
+    $lng = !empty($_POST['lng']) ? floatval($_POST['lng']) : null;
     
     if ($carrier_id > 0 && !empty($city) && !empty($address)) {
-        $stmt = $db->prepare("INSERT INTO offices (carrier_id, city, address) VALUES (?, ?, ?)");
-        $stmt->execute([$carrier_id, $city, $address]);
+        if ($lat !== null && $lng !== null) {
+            $stmt = $db->prepare("INSERT INTO offices (carrier_id, city, address, lat, lng) VALUES (?, ?, ?, ?, ?)");
+            $stmt->execute([$carrier_id, $city, $address, $lat, $lng]);
+        } else {
+            $stmt = $db->prepare("INSERT INTO offices (carrier_id, city, address) VALUES (?, ?, ?)");
+            $stmt->execute([$carrier_id, $city, $address]);
+        }
     }
 }
 
@@ -410,6 +417,14 @@ $status_options = [
                                 <div class="mb-3">
                                     <label class="form-label">Адрес</label>
                                     <input type="text" name="address" class="form-control" placeholder="Полный адрес отделения" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Широта (lat)</label>
+                                    <input type="number" step="any" name="lat" class="form-control" placeholder="Например: 53.904133" value="">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Долгота (lng)</label>
+                                    <input type="number" step="any" name="lng" class="form-control" placeholder="Например: 27.557541" value="">
                                 </div>
                                 <button type="submit" class="btn btn-success btn-lg w-100">Добавить отделение</button>
                             </form>
