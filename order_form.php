@@ -10,6 +10,8 @@ $preselected_weight = isset($_GET['weight']) ? floatval($_GET['weight']) : 0;
 $preselected_cost = isset($_GET['cost']) ? floatval($_GET['cost']) : 0;
 $preselected_from_office = isset($_GET['from']) ? (int)$_GET['from'] : 0;
 $preselected_to_office = isset($_GET['to']) ? (int)$_GET['to'] : 0;
+$preselected_package_type = isset($_GET['package_type']) ? $_GET['package_type'] : '';
+$preselected_insurance = isset($_GET['insurance']) ? (bool)$_GET['insurance'] : false;
 
 // Получаем информацию об офисах если они были переданы
 $from_office_info = null;
@@ -279,6 +281,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <?php if($preselected_cost > 0): ?>
                             , расчетная стоимость: <?= number_format($preselected_cost, 2) ?> BYN
                         <?php endif; ?>
+                        <?php if($preselected_package_type): ?>
+                            , тип: <?= $preselected_package_type === 'letter' ? 'Письмо' : 'Посылка' ?>
+                        <?php endif; ?>
+                        <?php if($preselected_insurance): ?>
+                            , страховка: да
+                        <?php endif; ?>
                         <?php if($from_office_info && $to_office_info): ?>
                             <br><strong>Маршрут:</strong> <?= htmlspecialchars($from_office_info['city']) ?> — <?= htmlspecialchars($to_office_info['city']) ?>
                         <?php endif; ?>
@@ -427,7 +435,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <div class="col-md-4">
                                 <div class="form-check mb-2">
                                     <input class="form-check-input" type="checkbox" name="insurance" id="insurance" 
-                                           <?= (isset($_POST['insurance'])) ? 'checked' : '' ?>>
+                                           <?= (isset($_POST['insurance']) || $preselected_insurance) ? 'checked' : '' ?>>
                                     <label class="form-check-label fw-bold" for="insurance">
                                         Страховка (+2%)
                                     </label>
