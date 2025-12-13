@@ -1,0 +1,52 @@
+async function findNearestToOffice() {
+    const recipientAddress = document.getElementById('recipient-address').value.trim();
+
+    if (!recipientAddress) {
+        alert("Пожалуйста, сначала введите адрес получателя.");
+        return;
+    }
+
+    try {
+        // Геокодирование адреса получателя
+        const geocodeUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(recipientAddress)}&limit=1`;
+        const response = await fetch(geocodeUrl);
+        const data = await response.json();
+        
+        if (data.length === 0) {
+            alert("Адрес получателя не найден. Пожалуйста, уточните адрес.");
+            return;
+        }
+        
+        const addressLat = parseFloat(data[0].lat);
+        const addressLng = parseFloat(data[0].lon);
+        
+        // Находим ближайший офис к адресу получателя
+        let nearestOffice = null;
+        let minDistance = Infinity;
+
+        offices.forEach(office => {
+            if (office.lat && office.lng) {
+                const distance = Math.sqrt(
+                    Math.pow(office.lat - addressLat, 2) +
+                    Math.pow(office.lng - addressLng, 2)
+                );
+
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    nearestOffice = office;
+                }
+            }
+        });
+
+        if (nearestOffice) {
+            selectToOffice(nearestOffice.id, nearestOffice.city, nearestOffice.address);
+            // Центрируем карту на выбранном офисе
+            map.setView([nearestOffice.lat, nearestOffice.lng], 13);
+        } else {
+            alert("Не найдено ближайших отделений для указанного адреса.");
+        }
+    } catch (error) {
+        console.error("Ошибка при геокодировании адреса:", error);
+        alert("Ошибка при поиске ближайшего отделения. Попробуйте снова.");
+    }
+}
