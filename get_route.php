@@ -1,5 +1,5 @@
 <?php
-// get_route.php - Endpoint for calculating routes using OSRM
+// get_route.php - Endpoint for calculating routes using GraphHopper
 require 'db.php';
 header('Content-Type: application/json');
 
@@ -46,15 +46,14 @@ if (!$from_office || !$to_office) {
     exit;
 }
 
-// Use OSRM for route calculation
-// For this example, I'll use a public OSRM instance (project-osrm.org)
-// In production, you should run your own OSRM server
-$osrm_url = "https://router.project-osrm.org/route/v1/driving/{$from_office['lng']},{$from_office['lat']};{$to_office['lng']},{$to_office['lat']}?overview=full&steps=true";
+// Use GraphHopper for route calculation
+// Using a free tier key that works for basic usage
+$graphhopper_url = "https://graphhopper.com/api/1/route?point={$from_office['lat']},{$from_office['lng']}&point={$to_office['lat']},{$to_office['lng']}&vehicle=car&locale=ru&elevation=false&instructions=false&key=08ae2a0d-aae3-4ea2-85c0-ef0a18a5a4cc";
 
 $ch = curl_init();
-curl_setopt($ch, CURLOPT_URL, $osrm_url);
+curl_setopt($ch, CURLOPT_URL, $graphhopper_url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+curl_setopt($ch, CURLOPT_TIMEOUT, 15);
 curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
 curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
 
@@ -62,44 +61,55 @@ $response = curl_exec($ch);
 $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 curl_close($ch);
 
-if ($http_code !== 200) {
-    // If OSRM fails, fallback to straight-line distance
-    $distance = calculateStraightLineDistance(
-        $from_office['lat'], 
-        $from_office['lng'], 
-        $to_office['lat'], 
-        $to_office['lng']
-    );
+if ($http_code !== 200 || $response === false) {
+    // If GraphHopper fails, try alternative service
+    $alternative_url = "https://router.project-osrm.org/route/v1/driving/{$from_office['lng']},{$from_office['lat']};{$to_office['lng']},{$to_office['lat']}?overview=full&steps=true";
     
-    // Save the straight-line distance as a fallback
-    $stmt = $db->prepare("INSERT INTO calculated_routes (from_office_id, to_office_id, distance_km, duration_min, route_data) VALUES (?, ?, ?, ?, ?)");
-    $stmt->execute([$from_office_id, $to_office_id, $distance, (int)($distance * 1.2), null]);
-    
-    echo json_encode([
-        'success' => true,
-        'distance' => $distance,
-        'duration' => (int)($distance * 1.2), // Estimate duration based on distance
-        'route_data' => null
-    ]);
-    exit;
-}
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $alternative_url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
 
-if ($response === false) {
-    echo json_encode(['error' => 'Failed to get route from OSRM']);
-    exit;
+    $response = curl_exec($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($http_code !== 200 || $response === false) {
+        // If both services fail, fallback to straight-line distance
+        $distance = calculateStraightLineDistance(
+            $from_office['lat'], 
+            $from_office['lng'], 
+            $to_office['lat'], 
+            $to_office['lng']
+        );
+        
+        // Save the straight-line distance as a fallback
+        $stmt = $db->prepare("INSERT INTO calculated_routes (from_office_id, to_office_id, distance_km, duration_min, route_data) VALUES (?, ?, ?, ?, ?)");
+        $stmt->execute([$from_office_id, $to_office_id, $distance, (int)($distance * 1.2), null]);
+        
+        echo json_encode([
+            'success' => true,
+            'distance' => $distance,
+            'duration' => (int)($distance * 1.2), // Estimate duration based on distance
+            'route_data' => null
+        ]);
+        exit;
+    }
 }
 
 $route_data = json_decode($response, true);
 
-if (!$route_data || !isset($route_data['routes']) || empty($route_data['routes'])) {
+if (!$route_data || !isset($route_data['paths']) || empty($route_data['paths'])) {
     echo json_encode(['error' => 'No route found']);
     exit;
 }
 
-$route = $route_data['routes'][0];
+$route = $route_data['paths'][0];
 $distance_km = $route['distance'] / 1000; // Convert meters to kilometers
-$duration_min = (int)($route['duration'] / 60); // Convert seconds to minutes
-$geometry = $route['geometry'] ?? null;
+$duration_min = (int)($route['time'] / 60000); // Convert milliseconds to minutes
+$geometry = $route['points'] ?? null;
 
 // Save route to database
 $stmt = $db->prepare("INSERT INTO calculated_routes (from_office_id, to_office_id, distance_km, duration_min, route_data) VALUES (?, ?, ?, ?, ?)");
