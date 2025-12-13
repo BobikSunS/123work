@@ -580,6 +580,7 @@ function showRoute() {
     // Удаляем предыдущий маршрут
     if (routeLayer) {
         map.removeLayer(routeLayer);
+        routeLayer = null;
     }
     
     // Получаем координаты офисов
@@ -587,40 +588,40 @@ function showRoute() {
     const toOffice = offices.find(o => o.id == selectedToOffice);
     
     if (fromOffice && toOffice) {
-        // Используем GraphHopper API для получения маршрута по дорогам (бесплатный API ключ)
-        const routeUrl = `https://graphhopper.com/api/1/route?point=${fromOffice.lat},${fromOffice.lng}&point=${toOffice.lat},${toOffice.lng}&vehicle=car&locale=ru&elevation=false&instructions=true&calc_points=true&key=9d7e367d-470c-4f72-86e8-74018d48d361`;
+        // Создаем маршрут как прямую линию между двумя точками
+        const routeCoords = [
+            [fromOffice.lat, fromOffice.lng],
+            [toOffice.lat, toOffice.lng]
+        ];
         
-        fetch(routeUrl)
-        .then(response => response.json())
-        .then(data => {
-            if (data.paths && data.paths[0] && data.paths[0].points) {
-                // Преобразуем координаты из формата [lat, lng] в [lng, lat] для Leaflet
-                const routeCoords = data.paths[0].points.coordinates.map(coord => [coord[1], coord[0]]);
-                
-                routeLayer = L.polyline(routeCoords, {color: 'red', weight: 4}).addTo(map);
-                
-                // Центрируем карту на маршруте
-                const bounds = L.latLngBounds(routeCoords);
-                map.fitBounds(bounds, {padding: [50, 50]});
-                
-                // Получаем расстояние и время из ответа API
-                const path = data.paths[0];
-                const distance = path.distance / 1000; // преобразуем в км
-                const duration = path.time / (1000 * 60 * 60); // преобразуем в часы
-                
-                alert(`Маршрут построен. Расстояние: ${distance.toFixed(2)} км, Время: ${duration.toFixed(2)} ч.`);
-            } else {
-                // Если API не сработал, выводим сообщение об ошибке
-                alert("Не удалось получить маршрут по дорогам. Пожалуйста, попробуйте позже.");
-            }
-        })
-        .catch(error => {
-            console.error('Error fetching route:', error);
-            
-            // В случае ошибки API, также выводим сообщение
-            alert("Не удалось получить маршрут по дорогам. Пожалуйста, попробуйте позже.");
-        });
+        routeLayer = L.polyline(routeCoords, {color: 'red', weight: 4}).addTo(map);
+        
+        // Центрируем карту на маршруте
+        const bounds = L.latLngBounds(routeCoords);
+        map.fitBounds(bounds, {padding: [50, 50]});
+        
+        // Рассчитываем приблизительное расстояние (по прямой)
+        const distance = calculateDistance(fromOffice.lat, fromOffice.lng, toOffice.lat, toOffice.lng);
+        
+        alert(`Маршрут построен. Приблизительное расстояние: ${distance.toFixed(2)} км.`);
     }
+}
+
+// Функция для расчета расстояния между двумя точками (по формуле гаверсинусов)
+function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Радиус Земли в километрах
+    const dLat = deg2rad(lat2 - lat1);
+    const dLon = deg2rad(lon2 - lon1);
+    const a = 
+        Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
+        Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c; // Расстояние в километрах
+}
+
+function deg2rad(deg) {
+    return deg * (Math.PI/180);
 }
 
 // Показ формулы расчета
@@ -639,154 +640,69 @@ function showFormula() {
         const toOffice = offices.find(o => o.id == selectedToOffice);
         
         if (fromOffice && toOffice) {
-            // Используем GraphHopper API для получения точного расстояния
-            const routeUrl = `https://graphhopper.com/api/1/route?point=${fromOffice.lat},${fromOffice.lng}&point=${toOffice.lat},${toOffice.lng}&vehicle=car&locale=ru&elevation=false&instructions=true&calc_points=true&key=9d7e367d-470c-4f72-86e8-74018d48d361`;
+            // Рассчитываем приблизительное расстояние (по прямой)
+            const distance = calculateDistance(fromOffice.lat, fromOffice.lng, toOffice.lat, toOffice.lng);
             
-            fetch(routeUrl)
-            .then(response => response.json())
-            .then(data => {
-                let distance = 0;
-                if (data.paths && data.paths[0] && data.paths[0].distance) {
-                    distance = data.paths[0].distance / 1000; // преобразуем в км
-                } else {
-                    // Если API не сработал, используем приблизительное расстояние
-                    distance = Math.sqrt(
-                        Math.pow(toOffice.lat - fromOffice.lat, 2) + 
-                        Math.pow(toOffice.lng - fromOffice.lng, 2)
-                    ) * 111; // Приблизительное расстояние в км
-                }
-                
-                const formula = `
-                    <div style="padding: 15px;">
-                        <h5>Формула расчета стоимости доставки</h5>
-                        <p><strong>Оператор:</strong> ${carrier.name}</p>
-                        <p><strong>Отделение отправки:</strong> ${fromOffice.city} — ${fromOffice.address}</p>
-                        <p><strong>Отделение получения:</strong> ${toOffice.city} — ${toOffice.address}</p>
-                        <p><strong>Расстояние:</strong> ${distance.toFixed(2)} км</p>
-                        <p><strong>Формула:</strong></p>
-                        <p><strong>Стоимость = Базовая стоимость + (Вес × Стоимость за кг) + (Расстояние × Стоимость за км)</strong></p>
-                        <p>Стоимость = ${carrier.base_cost} + (Вес × ${carrier.cost_per_kg}) + (${distance.toFixed(2)} × ${carrier.cost_per_km})</p>
-                        <p><em>Время доставки: Расстояние / Скорость оператора (${carrier.speed_kmh} км/ч)</em></p>
-                        <p><em>Формула: Время = ${distance.toFixed(2)} км / ${carrier.speed_kmh} км/ч = ${(distance / carrier.speed_kmh).toFixed(2)} ч</em></p>
-                    </div>
-                `;
-                
-                // Показываем в модальном окне
-                const modal = document.createElement('div');
-                modal.innerHTML = formula;
-                modal.style.position = 'fixed';
-                modal.style.top = '50%';
-                modal.style.left = '50%';
-                modal.style.transform = 'translate(-50%, -50%)';
-                modal.style.backgroundColor = 'white';
-                modal.style.padding = '0';
-                modal.style.border = '2px solid #007cba';
-                modal.style.borderRadius = '10px';
-                modal.style.zIndex = '10000';
-                modal.style.maxWidth = '600px';
-                modal.style.maxHeight = '80vh';
-                modal.style.overflowY = 'auto';
-                modal.style.boxShadow = '0 4px 20px rgba(0,0,0,0.3)';
-                
-                const closeBtn = document.createElement('button');
-                closeBtn.textContent = 'Закрыть';
-                closeBtn.style.position = 'absolute';
-                closeBtn.style.top = '10px';
-                closeBtn.style.right = '10px';
-                closeBtn.style.background = '#dc3545';
-                closeBtn.style.color = 'white';
-                closeBtn.style.border = 'none';
-                closeBtn.style.borderRadius = '50%';
-                closeBtn.style.width = '30px';
-                closeBtn.style.height = '30px';
-                closeBtn.style.cursor = 'pointer';
-                closeBtn.onclick = function() { document.body.removeChild(backdrop); document.body.removeChild(modal); };
-                
-                // Создаем затемнение фона
-                const backdrop = document.createElement('div');
-                backdrop.style.position = 'fixed';
-                backdrop.style.top = '0';
-                backdrop.style.left = '0';
-                backdrop.style.width = '100%';
-                backdrop.style.height = '100%';
-                backdrop.style.backgroundColor = 'rgba(0,0,0,0.5)';
-                backdrop.style.zIndex = '9999';
-                backdrop.onclick = function() { document.body.removeChild(backdrop); document.body.removeChild(modal); };
-                
-                modal.appendChild(closeBtn);
-                document.body.appendChild(backdrop);
-                document.body.appendChild(modal);
-            })
-            .catch(error => {
-                console.error('Error fetching route for formula:', error);
-                
-                // В случае ошибки используем приблизительное расстояние
-                const distance = Math.sqrt(
-                    Math.pow(toOffice.lat - fromOffice.lat, 2) + 
-                    Math.pow(toOffice.lng - fromOffice.lng, 2)
-                ) * 111; // Приблизительное расстояние в км
-                
-                const formula = `
-                    <div style="padding: 15px;">
-                        <h5>Формула расчета стоимости доставки</h5>
-                        <p><strong>Оператор:</strong> ${carrier.name}</p>
-                        <p><strong>Отделение отправки:</strong> ${fromOffice.city} — ${fromOffice.address}</p>
-                        <p><strong>Отделение получения:</strong> ${toOffice.city} — ${toOffice.address}</p>
-                        <p><strong>Расстояние:</strong> ${distance.toFixed(2)} км (приближенное)</p>
-                        <p><strong>Формула:</strong></p>
-                        <p><strong>Стоимость = Базовая стоимость + (Вес × Стоимость за кг) + (Расстояние × Стоимость за км)</strong></p>
-                        <p>Стоимость = ${carrier.base_cost} + (Вес × ${carrier.cost_per_kg}) + (${distance.toFixed(2)} × ${carrier.cost_per_km})</p>
-                        <p><em>Время доставки: Расстояние / Скорость оператора (${carrier.speed_kmh} км/ч)</em></p>
-                        <p><em>Формула: Время = ${distance.toFixed(2)} км / ${carrier.speed_kmh} км/ч = ${(distance / carrier.speed_kmh).toFixed(2)} ч</em></p>
-                    </div>
-                `;
-                
-                // Показываем в модальном окне
-                const modal = document.createElement('div');
-                modal.innerHTML = formula;
-                modal.style.position = 'fixed';
-                modal.style.top = '50%';
-                modal.style.left = '50%';
-                modal.style.transform = 'translate(-50%, -50%)';
-                modal.style.backgroundColor = 'white';
-                modal.style.padding = '0';
-                modal.style.border = '2px solid #007cba';
-                modal.style.borderRadius = '10px';
-                modal.style.zIndex = '10000';
-                modal.style.maxWidth = '600px';
-                modal.style.maxHeight = '80vh';
-                modal.style.overflowY = 'auto';
-                modal.style.boxShadow = '0 4px 20px rgba(0,0,0,0.3)';
-                
-                const closeBtn = document.createElement('button');
-                closeBtn.textContent = 'Закрыть';
-                closeBtn.style.position = 'absolute';
-                closeBtn.style.top = '10px';
-                closeBtn.style.right = '10px';
-                closeBtn.style.background = '#dc3545';
-                closeBtn.style.color = 'white';
-                closeBtn.style.border = 'none';
-                closeBtn.style.borderRadius = '50%';
-                closeBtn.style.width = '30px';
-                closeBtn.style.height = '30px';
-                closeBtn.style.cursor = 'pointer';
-                closeBtn.onclick = function() { document.body.removeChild(backdrop); document.body.removeChild(modal); };
-                
-                // Создаем затемнение фона
-                const backdrop = document.createElement('div');
-                backdrop.style.position = 'fixed';
-                backdrop.style.top = '0';
-                backdrop.style.left = '0';
-                backdrop.style.width = '100%';
-                backdrop.style.height = '100%';
-                backdrop.style.backgroundColor = 'rgba(0,0,0,0.5)';
-                backdrop.style.zIndex = '9999';
-                backdrop.onclick = function() { document.body.removeChild(backdrop); document.body.removeChild(modal); };
-                
-                modal.appendChild(closeBtn);
-                document.body.appendChild(backdrop);
-                document.body.appendChild(modal);
-            });
+            const formula = `
+                <div style="padding: 15px;">
+                    <h5>Формула расчета стоимости доставки</h5>
+                    <p><strong>Оператор:</strong> ${carrier.name}</p>
+                    <p><strong>Отделение отправки:</strong> ${fromOffice.city} — ${fromOffice.address}</p>
+                    <p><strong>Отделение получения:</strong> ${toOffice.city} — ${toOffice.address}</p>
+                    <p><strong>Расстояние:</strong> ${distance.toFixed(2)} км (по прямой)</p>
+                    <p><strong>Формула:</strong></p>
+                    <p><strong>Стоимость = Базовая стоимость + (Вес × Стоимость за кг) + (Расстояние × Стоимость за км)</strong></p>
+                    <p>Стоимость = ${carrier.base_cost} + (Вес × ${carrier.cost_per_kg}) + (${distance.toFixed(2)} × ${carrier.cost_per_km})</p>
+                    <p><em>Время доставки: Расстояние / Скорость оператора (${carrier.speed_kmh} км/ч)</em></p>
+                    <p><em>Формула: Время = ${distance.toFixed(2)} км / ${carrier.speed_kmh} км/ч = ${(distance / carrier.speed_kmh).toFixed(2)} ч</em></p>
+                </div>
+            `;
+            
+            // Показываем в модальном окне
+            const modal = document.createElement('div');
+            modal.innerHTML = formula;
+            modal.style.position = 'fixed';
+            modal.style.top = '50%';
+            modal.style.left = '50%';
+            modal.style.transform = 'translate(-50%, -50%)';
+            modal.style.backgroundColor = 'white';
+            modal.style.padding = '0';
+            modal.style.border = '2px solid #007cba';
+            modal.style.borderRadius = '10px';
+            modal.style.zIndex = '10000';
+            modal.style.maxWidth = '600px';
+            modal.style.maxHeight = '80vh';
+            modal.style.overflowY = 'auto';
+            modal.style.boxShadow = '0 4px 20px rgba(0,0,0,0.3)';
+            
+            const closeBtn = document.createElement('button');
+            closeBtn.textContent = 'Закрыть';
+            closeBtn.style.position = 'absolute';
+            closeBtn.style.top = '10px';
+            closeBtn.style.right = '10px';
+            closeBtn.style.background = '#dc3545';
+            closeBtn.style.color = 'white';
+            closeBtn.style.border = 'none';
+            closeBtn.style.borderRadius = '50%';
+            closeBtn.style.width = '30px';
+            closeBtn.style.height = '30px';
+            closeBtn.style.cursor = 'pointer';
+            closeBtn.onclick = function() { document.body.removeChild(backdrop); document.body.removeChild(modal); };
+            
+            // Создаем затемнение фона
+            const backdrop = document.createElement('div');
+            backdrop.style.position = 'fixed';
+            backdrop.style.top = '0';
+            backdrop.style.left = '0';
+            backdrop.style.width = '100%';
+            backdrop.style.height = '100%';
+            backdrop.style.backgroundColor = 'rgba(0,0,0,0.5)';
+            backdrop.style.zIndex = '9999';
+            backdrop.onclick = function() { document.body.removeChild(backdrop); document.body.removeChild(modal); };
+            
+            modal.appendChild(closeBtn);
+            document.body.appendChild(backdrop);
+            document.body.appendChild(modal);
         }
     }
 }
