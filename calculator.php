@@ -385,6 +385,11 @@ function formatDeliveryTime($hours) {
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- Leaflet Routing Machine -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+<script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+<!-- GraphHopper Routing Plugin for Leaflet -->
+<script src="https://unpkg.com/leaflet-control-geocoder@2.4.0/dist/Control.Geocoder.js"></script>
 <script>
 let map = null;
 let markers = [];
@@ -509,7 +514,7 @@ function changeFromOffice() {
     
     // Удаляем маршрут если он был
     if (routeLayer) {
-        map.removeLayer(routeLayer);
+        map.removeControl(routeLayer);
         routeLayer = null;
     }
 }
@@ -522,11 +527,11 @@ function changeToOffice() {
     document.getElementById('show-route-btn').disabled = true;
     document.getElementById('calculate-btn').disabled = true;
     document.getElementById('show-formula-btn').disabled = true;
-    
     // Удаляем маршрут если он был
     if (routeLayer) {
-        map.removeLayer(routeLayer);
+        map.removeControl(routeLayer);
         routeLayer = null;
+    }
     }
 }
 
@@ -576,34 +581,48 @@ function showRoute() {
         alert("Пожалуйста, выберите оба офиса (отправка и получение).");
         return;
     }
-    
+
     // Удаляем предыдущий маршрут
-    if (routeLayer) {
-        map.removeLayer(routeLayer);
+        map.removeControl(routeLayer);
         routeLayer = null;
-    }
-    
     // Получаем координаты офисов
     const fromOffice = offices.find(o => o.id == selectedFromOffice);
     const toOffice = offices.find(o => o.id == selectedToOffice);
-    
+
     if (fromOffice && toOffice) {
-        // Создаем маршрут как прямую линию между двумя точками
-        const routeCoords = [
-            [fromOffice.lat, fromOffice.lng],
-            [toOffice.lat, toOffice.lng]
-        ];
-        
-        routeLayer = L.polyline(routeCoords, {color: 'red', weight: 4}).addTo(map);
-        
-        // Центрируем карту на маршруте
-        const bounds = L.latLngBounds(routeCoords);
-        map.fitBounds(bounds, {padding: [50, 50]});
-        
-        // Рассчитываем приблизительное расстояние (по прямой)
-        const distance = calculateDistance(fromOffice.lat, fromOffice.lng, toOffice.lat, toOffice.lng);
-        
-        alert(`Маршрут построен. Приблизительное расстояние: ${distance.toFixed(2)} км.`);
+        // Используем Leaflet Routing Machine для построения маршрута по дорогам
+        routeLayer = L.Routing.control({
+            waypoints: [
+                L.latLng(fromOffice.lat, fromOffice.lng),
+                L.latLng(toOffice.lat, toOffice.lng)
+            ],
+            routeWhileDragging: false,
+            fitSelectedRoutes: true,
+            showAlternatives: true,
+            altLineOptions: {
+                styles: [
+                    {color: "black", opacity: 0.15, weight: 9},
+                    {color: "white", opacity: 0.8, weight: 6},
+                    {color: "blue", opacity: 0.5, weight: 2}
+                ]
+            },
+            lineOptions: {
+                styles: [{color: "#007cba", weight: 6, opacity: 0.7}]
+            },
+            createMarker: function(i, wp, nWps) {
+                // Убираем создание маркеров, чтобы не дублировались с нашими офисными маркерами
+                return null;
+            }
+        }).addTo(map);
+
+        // Получаем реальное расстояние из маршрута
+        routeLayer.on("routesfound", function(e) {
+            const routes = e.routes;
+            const distance = routes[0].summary.totalDistance / 1000; // в км
+            const time = routes[0].summary.totalTime / 3600; // в часах
+            
+            alert(`Маршрут построен. Расстояние: ${distance.toFixed(2)} км, время: ${time.toFixed(1)} ч.`);
+        });
     }
 }
 
