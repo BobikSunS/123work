@@ -1,7 +1,7 @@
 <?php
 // Единая функция для расчета стоимости доставки
 
-function calculateDeliveryCost($db, $carrier_id, $from_office_id, $to_office_id, $weight, $package_type, $insurance, $letter_count = 1, $packaging = false, $fragile = false) {
+function calculateDeliveryCost($db, $carrier_id, $from_office_id, $to_office_id, $weight, $package_type, $insurance, $letter_count = 1, $packaging = false, $fragile = false, $with_breakdown = false) {
     // Получаем информацию о перевозчике
     $carrier = $db->prepare("SELECT * FROM carriers WHERE id = ?");
     $carrier->execute([$carrier_id]);
@@ -58,24 +58,35 @@ function calculateDeliveryCost($db, $carrier_id, $from_office_id, $to_office_id,
         throw new Exception("Weight exceeds carrier limit");
     }
     
+    // Store initial costs for breakdown
+    $base_cost = $carrier['base_cost'];
+    $weight_cost = $weight * $carrier['cost_per_kg'];
+    $distance_cost = $distance * $carrier['cost_per_km'];
+    
     // Calculate base cost
-    $cost = $carrier['base_cost'] + 
-            $weight * $carrier['cost_per_kg'] + 
-            $distance * $carrier['cost_per_km'];
+    $cost = $base_cost + $weight_cost + $distance_cost;
+    
+    // Store additional costs for breakdown
+    $insurance_cost = 0;
+    $packaging_cost = 0;
+    $fragile_cost = 0;
     
     // Apply insurance
     if ($insurance) {
-        $cost *= 1.02;
+        $insurance_cost = $cost * 0.02;  // 2% of current cost
+        $cost += $insurance_cost;
     }
     
     // Apply packaging
     if ($packaging) {
-        $cost += 3.00;
+        $packaging_cost = 3.00;
+        $cost += $packaging_cost;
     }
     
     // Apply fragile
     if ($fragile) {
-        $cost *= 1.01;
+        $fragile_cost = $cost * 0.01;  // 1% of current cost
+        $cost += $fragile_cost;
     }
     
     // Apply minimum cost for letters
@@ -85,9 +96,24 @@ function calculateDeliveryCost($db, $carrier_id, $from_office_id, $to_office_id,
     
     $cost = round($cost, 2);
     
-    return [
-        'cost' => $cost,
-        'distance' => $distance
-    ];
+    if ($with_breakdown) {
+        return [
+            'cost' => $cost,
+            'distance' => $distance,
+            'breakdown' => [
+                'base_cost' => $base_cost,
+                'weight_cost' => $weight_cost,
+                'distance_cost' => $distance_cost,
+                'insurance_cost' => $insurance_cost,
+                'packaging_cost' => $packaging_cost,
+                'fragile_cost' => $fragile_cost
+            ]
+        ];
+    } else {
+        return [
+            'cost' => $cost,
+            'distance' => $distance
+        ];
+    }
 }
 ?>
