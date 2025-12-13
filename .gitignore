@@ -1,28 +1,9 @@
-```
-# Backup files
-*.backup
-
-# Logs and temp files
-*.log
-*.tmp
-
-# Environment
-.env
-.env.local
-*.env.*
-
-# Editors
-.vscode/
-.idea/
-
-# Dependencies
-node_modules/
-vendor/
-*.lock
-
-# Build artifacts
-dist/
-build/
+```gitignore
+# Compiled and binary files
+*.pyc
+*.pyo
+*.pyd
+*.class
 *.o
 *.obj
 *.exe
@@ -31,60 +12,64 @@ build/
 *.a
 *.out
 
-# Python specific
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-env/
+# Dependencies
+node_modules/
 venv/
 .venv/
-pip-log.txt
-pip-delete-this-directory.txt
-.tox/
+__pycache__/
+*.egg-info/
+dist/
+build/
+target/
+.gradle/
+.mypy_cache/
+.pytest_cache/
 .coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.log
-.git/refs/heads/*
-!.git/keep
+coverage/
+htmlcov/
 
-# PHP specific
-*.phar
-*.pid
+# Logs and temp files
+*.log
+*.tmp
 *.swp
 *.swo
-*~
-.php_cs
-.php_cs.dist
-.php_cs.cache
-.sass-cache/
-.css.map
-.js.map
 
-# JavaScript specific
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.jshintrc
-.node-version
-.nodemonignore
-.foreman
-.nyc_output
-.nyc
-istanbul.yml
-.coveralls.yml
-.travis.yml
-.circleci
-.nyc-output
-coverage/
-.nyc_output/
-lcov-report/
-.nyc/
-istanbul/
-.coverage/
+# Environment
+.env
+.env.local
+.env.*
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Compressed files
+*.zip
+*.gz
+*.tar
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.zst
+*.lz4
+*.lzh
+*.cab
+*.arj
+*.rpm
+*.deb
+*.Z
+*.lz
+*.lzo
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
 ```
