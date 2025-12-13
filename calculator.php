@@ -1,25 +1,51 @@
-<?php 
-require 'db.php';
+<?php require 'db.php';
 if (!isset($_SESSION['user'])) header('Location: index.php');
 $user = $_SESSION['user'];
 
 $carriers = $db->query("SELECT * FROM carriers")->fetchAll();
 
-// Get offices with coordinates for the selected carrier
-function getOfficesByCarrier($db, $carrier_id) {
-    $stmt = $db->prepare("SELECT * FROM offices WHERE carrier_id = ? ORDER BY city, address");
-    $stmt->execute([$carrier_id]);
-    return $stmt->fetchAll();
+// Граф
+$graph = [];
+foreach ($db->query("SELECT from_office, to_office, distance_km FROM routes") as $r) {
+    $graph[$r['from_office']][$r['to_office']] = $r['distance_km'];
+    $graph[$r['to_office']][$r['from_office']] = $r['distance_km'];
 }
 
-// Get all offices for all carriers to use in the map
-function getAllOffices($db) {
-    $stmt = $db->prepare("SELECT o.*, c.name as carrier_name FROM offices o JOIN carriers c ON o.carrier_id = c.id ORDER BY c.name, o.city, o.address");
-    $stmt->execute();
-    return $stmt->fetchAll();
-}
+function dijkstra($graph, $start, $end) {
+    // Check if both start and end nodes exist in the graph
+    if (!isset($graph[$start]) || !isset($graph[$end])) {
+        return null;
+    }
+    
+    $dist = array_fill_keys(array_keys($graph), INF);
+    $prev = [];
+    $dist[$start] = 0;
+    $queue = [$start => 0];
 
-$all_offices = getAllOffices($db);
+    while (!empty($queue)) {
+        $u = array_keys($queue, min($queue))[0];
+        unset($queue[$u]);
+        if (!isset($graph[$u])) continue;
+        foreach ($graph[$u] as $v => $w) {
+            $alt = $dist[$u] + $w;
+            if ($alt < $dist[$v]) {
+                $dist[$v] = $alt;
+                $prev[$v] = $u;
+                $queue[$v] = $alt;
+            }
+        }
+    }
+    if ($dist[$end] === INF) return null;
+    $path = [];
+    $u = $end;
+    while ($u != $start) {
+        $path[] = $u;
+        $u = $prev[$u] ?? null;
+        if ($u === null) return null;
+    }
+    $path[] = $start;
+    return ['path' => array_reverse($path), 'distance' => $dist[$end]];
+}
 
 function formatDeliveryTime($hours) {
     $days = $hours / 24;
@@ -52,50 +78,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = "Нельзя отправить в то же отделение!";
     } else {
         $carrier = $db->query("SELECT * FROM carriers WHERE id = $carrier_id")->fetch();
-        
-        // Calculate route using Dijkstra's algorithm
-        $graph = [];
-        foreach ($db->query("SELECT from_office, to_office, distance_km FROM routes") as $r) {
-            $graph[$r['from_office']][$r['to_office']] = $r['distance_km'];
-            $graph[$r['to_office']][$r['from_office']] = $r['distance_km'];
-        }
-
-        function dijkstra($graph, $start, $end) {
-            // Check if both start and end nodes exist in the graph
-            if (!isset($graph[$start]) || !isset($graph[$end])) {
-                return null;
-            }
-            
-            $dist = array_fill_keys(array_keys($graph), INF);
-            $prev = [];
-            $dist[$start] = 0;
-            $queue = [$start => 0];
-
-            while (!empty($queue)) {
-                $u = array_keys($queue, min($queue))[0];
-                unset($queue[$u]);
-                if (!isset($graph[$u])) continue;
-                foreach ($graph[$u] as $v => $w) {
-                    $alt = $dist[$u] + $w;
-                    if ($alt < $dist[$v]) {
-                        $dist[$v] = $alt;
-                        $prev[$v] = $u;
-                        $queue[$v] = $alt;
-                    }
-                }
-            }
-            if ($dist[$end] === INF) return null;
-            $path = [];
-            $u = $end;
-            while ($u != $start) {
-                $path[] = $u;
-                $u = $prev[$u] ?? null;
-                if ($u === null) return null;
-            }
-            $path[] = $start;
-            return ['path' => array_reverse($path), 'distance' => $dist[$end]];
-        }
-
         $pathData = dijkstra($graph, $from, $to);
         if (!$pathData) {
             $error = "Маршрут не найден!";
@@ -108,9 +90,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $weight = $type === 'letter' 
                 ? 0.02 * (int)($_POST['letter_count'] ?? 1)
-                : max((float)$_POST['weight'], 0);
+                : max((float)$_POST['weight'], 0); // Remove volume weight calculation since gabarit is removed
 
-            $max_weight = $carrier['max_weight'];
+            $max_weight = $carrier['max_weight']; // Remove gabarit-based weight increase
 
             if ($weight > $max_weight) {
                 $error = "Вес превышает лимит оператора ($max_weight кг)!";
@@ -119,7 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                       + $weight * $carrier['cost_per_kg'] 
                       + $distance * $carrier['cost_per_km'];
 
-                if ($insurance) $cost *= 1.02;
+                if ($insurance) $cost *= 1.02; // Remove gabarit and speed cost calculations
                 if ($type === 'letter') $cost = max($cost, 2.5);
 
                 $cost = round($cost, 2);
@@ -144,61 +126,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <title>Почтовый калькулятор</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="assets/css/style.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <style>
-        #map { 
-            height: 500px; 
-            z-index: 1;
-        }
-        .map-container {
-            margin-top: 20px;
-        }
-        .office-marker {
-            background: #3498db;
-            color: white;
-            border-radius: 50%;
-            width: 32px;
-            height: 32px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            font-size: 14px;
-        }
-        .office-marker.selected {
-            background: #e74c3c;
-        }
-        .office-marker.departure {
-            background: #3498db;
-        }
-        .office-marker.arrival {
-            background: #2ecc71;
-        }
-        .route-line {
-            stroke: #e74c3c;
-            stroke-width: 4;
-            stroke-dasharray: 10, 10;
-        }
-        .search-container {
-            margin-bottom: 15px;
-        }
-        .btn-map-action {
-            margin-top: 10px;
-        }
-        .route-info {
-            margin-top: 20px;
-            padding: 15px;
-            background-color: #f8f9fa;
-            border-radius: 5px;
-        }
-        .formula-display {
-            display: none;
-            margin-top: 15px;
-            padding: 15px;
-            background-color: #e8f4f8;
-            border-radius: 5px;
-        }
-    </style>
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 </head>
 <body class="d-flex flex-column min-vh-100">
 <nav class="navbar navbar-dark bg-primary shadow-lg">
@@ -246,7 +174,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $carrier_id = $_POST['carrier'] ?? $_GET['carrier'] ?? null;
                             if ($carrier_id) {
                                 $carrier_id = (int)$carrier_id;
-                                $offices = getOfficesByCarrier($db, $carrier_id);
+                                $offices = $db->query("SELECT * FROM offices WHERE carrier_id = $carrier_id ORDER BY city, address")->fetchAll();
                                 foreach($offices as $o): 
                             ?>
                                 <option value="<?= $o['id'] ?>" <?= (($_POST['from'] ?? $_GET['from'] ?? '') == $o['id']) ? 'selected' : '' ?>><?= htmlspecialchars($o['city']) ?> — <?= htmlspecialchars($o['address']) ?></option>
@@ -259,22 +187,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <option value="">Выберите</option>
                             <?php 
                             if ($carrier_id) {
-                                $offices = getOfficesByCarrier($db, $carrier_id);
+                                $carrier_id = (int)$carrier_id;
+                                $offices = $db->query("SELECT * FROM offices WHERE carrier_id = $carrier_id ORDER BY city, address")->fetchAll();
                                 foreach($offices as $o): 
                             ?>
                                 <option value="<?= $o['id'] ?>" <?= (($_POST['to'] ?? $_GET['to'] ?? '') == $o['id']) ? 'selected' : '' ?>><?= htmlspecialchars($o['city']) ?> — <?= htmlspecialchars($o['address']) ?></option>
                             <?php endforeach; } ?>
                         </select>
-                    </div>
-                    
-                    <!-- New fields for sender and receiver addresses -->
-                    <div class="col-md-6">
-                        <label>Адрес отправителя (для получения)</label>
-                        <input type="text" name="sender_address" id="sender-address" class="form-control" placeholder="Введите адрес отправителя">
-                    </div>
-                    <div class="col-md-6">
-                        <label>Адрес получателя (для доставки)</label>
-                        <input type="text" name="receiver_address" id="receiver-address" class="form-control" placeholder="Введите адрес получателя">
                     </div>
 
                     <div class="col-md-4">
@@ -307,51 +226,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 <button type="submit" class="btn btn-success btn-lg mt-4 w-100">Рассчитать</button>
             </form>
-        </div>
-    </div>
-
-    <!-- Map section -->
-    <div class="card mt-5 shadow-lg" id="map-section" style="display:<?= (isset($_POST['carrier']) || isset($_GET['carrier'])) ? 'block' : 'none' ?>;">
-        <div class="card-body">
-            <h4 class="text-center mb-4">Карта отделений и маршрута</h4>
-            
-            <div class="row">
-                <div class="col-md-8">
-                    <div id="map"></div>
-                </div>
-                <div class="col-md-4">
-                    <div class="search-container">
-                        <input type="text" id="office-search" class="form-control" placeholder="Поиск отделения...">
-                    </div>
-                    
-                    <div class="d-grid gap-2">
-                        <button class="btn btn-primary btn-map-action" onclick="findNearestOffice('from')">Выбрать ближайшее (отправка)</button>
-                        <button class="btn btn-success btn-map-action" onclick="findNearestOffice('to')">Выбрать ближайшее (получение)</button>
-                        <button class="btn btn-info btn-map-action" onclick="calculateRoute()">Показать маршрут</button>
-                        <button class="btn btn-secondary btn-map-action" onclick="toggleFormula()">Формула расчета</button>
-                    </div>
-                    
-                    <div class="formula-display" id="formula-display">
-                        <h5>Формула расчета маршрута</h5>
-                        <p>Маршрут рассчитывается с использованием алгоритма Дейкстры для поиска кратчайшего пути в графе транспортной сети.</p>
-                        <p><strong>Формула:</strong> Минимальное расстояние между двумя точками по дорожной сети</p>
-                        <p><strong>Входные данные:</strong></p>
-                        <ul>
-                            <li>Точка отправки: <span id="formula-from">-</span></li>
-                            <li>Точка получения: <span id="formula-to">-</span></li>
-                            <li>Расстояние: <span id="formula-distance">-</span> км</li>
-                            <li>Время доставки: <span id="formula-time">-</span> часов</li>
-                        </ul>
-                    </div>
-                    
-                    <div class="route-info" id="route-info" style="display:none;">
-                        <h5>Информация о маршруте</h5>
-                        <p><strong>Расстояние:</strong> <span id="route-distance">-</span> км</p>
-                        <p><strong>Время доставки:</strong> <span id="route-time">-</span></p>
-                        <p><strong>Оператор:</strong> <span id="route-carrier">-</span></p>
-                    </div>
-                </div>
-            </div>
         </div>
     </div>
 
@@ -499,7 +373,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 </footer>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 let selected = null;
 
