@@ -59,10 +59,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             // Используем переданную стоимость из калькулятора, если она есть
-            $cost = floatval($_POST['cost'] ?? 0);
+            $cost = floatval($_POST['cost'] ?? $_GET['cost'] ?? 0);
             if ($cost <= 0) {
                 // Если стоимость не передана, вычисляем её
                 $cost = $carrier['base_cost'] + $weight * $carrier['cost_per_kg'];
+                
+                // Получаем расстояние между офисами, если они указаны
+                if ($from_office > 0 && $to_office > 0) {
+                    // Получаем информацию о маршруте из calculated_routes
+                    $stmt_route = $db->prepare("SELECT distance_km FROM calculated_routes WHERE from_office_id = ? AND to_office_id = ?");
+                    $stmt_route->execute([$from_office, $to_office]);
+                    $route_info = $stmt_route->fetch();
+                    
+                    if ($route_info) {
+                        $distance = floatval($route_info['distance_km']);
+                        $cost += $distance * $carrier['cost_per_km'];
+                    }
+                }
                 
                 // Если выбрана страховка, добавляем 2%
                 if ($insurance) {
