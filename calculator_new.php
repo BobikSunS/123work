@@ -295,8 +295,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <input type="number" name="letter_count" class="form-control" value="<?= $_POST['letter_count'] ?? $_GET['letter_count'] ?? '1' ?>" min="1" max="50">
                     </div>
 
-
-
                     <div class="col-md-4 d-flex align-items-end">
                         <div class="form-check">
                             <input type="checkbox" name="insurance" class="form-check-input" id="ins" <?= (isset($_POST['insurance']) || isset($_GET['insurance'])) ? 'checked' : '' ?>>
@@ -376,38 +374,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         $all_results = [];
         foreach($carriers as $c) {
+            $graph = [];
+            foreach ($db->query("SELECT from_office, to_office, distance_km FROM routes") as $r) {
+                $graph[$r['from_office']][$r['to_office']] = $r['distance_km'];
+                $graph[$r['to_office']][$r['from_office']] = $r['distance_km'];
+            }
+            
             $pathData = dijkstra($graph, $from, $to);
             if ($pathData) {
                 $distance = $pathData['distance'];
                 $base_hours = $distance / $c['speed_kmh'];
 
                 $type = $_POST['package_type'];
-                $gabarit = $_POST['gabarit'] ?? 'small';
-                $speed = $_POST['delivery_speed'] ?? 'standard';
                 $insurance = isset($_POST['insurance']);
-
-                $volume_weight = 0;
-                if ($type === 'parcel') {
-                    if ($gabarit === 'medium') $volume_weight = 8;
-                    if ($gabarit === 'large') $volume_weight = 20;
-                }
 
                 $weight = $type === 'letter' 
                     ? 0.02 * (int)($_POST['letter_count'] ?? 1)
-                    : max((float)$_POST['weight'], $volume_weight);
+                    : max((float)$_POST['weight'], 0);
 
                 $max_weight = $c['max_weight'];
-                if ($gabarit === 'medium') $max_weight += 8;
-                if ($gabarit === 'large') $max_weight += 20;
 
                 if ($weight <= $max_weight) {
                     $cost = $c['base_cost'] 
                           + $weight * $c['cost_per_kg'] 
                           + $distance * $c['cost_per_km'];
 
-                    if ($gabarit === 'medium') $cost += 6;
-                    if ($gabarit === 'large') $cost += 15;
-                    if ($speed === 'express') { $cost *= 1.25; $base_hours *= 0.7; }
                     if ($insurance) $cost *= 1.02;
                     if ($type === 'letter') $cost = max($cost, 2.5);
 
@@ -445,9 +436,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="card-header bg-secondary text-white">
             <h4>Сравнение операторов</h4>
             <div class="btn-group" role="group">
-                <a href="?filter=all&carrier=<?= $_POST['carrier'] ?? $_GET['carrier'] ?? '' ?>&from=<?= $_POST['from'] ?? $_GET['from'] ?? '' ?>&to=<?= $_POST['to'] ?? $_GET['to'] ?? '' ?>&package_type=<?= $_POST['package_type'] ?? $_GET['package_type'] ?? '' ?>&weight=<?= $_POST['weight'] ?? $_GET['weight'] ?? ($_POST['package_type'] === 'letter' ? ($_POST['letter_count'] ?? $_GET['letter_count'] ?? 1) * 0.02 : '') ?>&letter_count=<?= $_POST['letter_count'] ?? $_GET['letter_count'] ?? '' ?>&gabarit=<?= $_POST['gabarit'] ?? $_GET['gabarit'] ?? 'small' ?>&delivery_speed=<?= $_POST['delivery_speed'] ?? $_GET['delivery_speed'] ?? 'standard' ?>&insurance=<?= isset($_POST['insurance']) || isset($_GET['insurance']) ? '1' : '0' ?>" class="btn btn-sm <?= $active_filter === 'all' ? 'btn-primary' : 'btn-outline-light' ?>">Все</a>
-                <a href="?filter=cheapest&carrier=<?= $_POST['carrier'] ?? $_GET['carrier'] ?? '' ?>&from=<?= $_POST['from'] ?? $_GET['from'] ?? '' ?>&to=<?= $_POST['to'] ?? $_GET['to'] ?? '' ?>&package_type=<?= $_POST['package_type'] ?? $_GET['package_type'] ?? '' ?>&weight=<?= $_POST['weight'] ?? $_GET['weight'] ?? ($_POST['package_type'] === 'letter' ? ($_POST['letter_count'] ?? $_GET['letter_count'] ?? 1) * 0.02 : '') ?>&letter_count=<?= $_POST['letter_count'] ?? $_GET['letter_count'] ?? '' ?>&gabarit=<?= $_POST['gabarit'] ?? $_GET['gabarit'] ?? 'small' ?>&delivery_speed=<?= $_POST['delivery_speed'] ?? $_GET['delivery_speed'] ?? 'standard' ?>&insurance=<?= isset($_POST['insurance']) || isset($_GET['insurance']) ? '1' : '0' ?>" class="btn btn-sm <?= $active_filter === 'cheapest' ? 'btn-success' : 'btn-outline-light' ?>">Самый дешевый</a>
-                <a href="?filter=fastest&carrier=<?= $_POST['carrier'] ?? $_GET['carrier'] ?? '' ?>&from=<?= $_POST['from'] ?? $_GET['from'] ?? '' ?>&to=<?= $_POST['to'] ?? $_GET['to'] ?? '' ?>&package_type=<?= $_POST['package_type'] ?? $_GET['package_type'] ?? '' ?>&weight=<?= $_POST['weight'] ?? $_GET['weight'] ?? ($_POST['package_type'] === 'letter' ? ($_POST['letter_count'] ?? $_GET['letter_count'] ?? 1) * 0.02 : '') ?>&letter_count=<?= $_POST['letter_count'] ?? $_GET['letter_count'] ?? '' ?>&gabarit=<?= $_POST['gabarit'] ?? $_GET['gabarit'] ?? 'small' ?>&delivery_speed=<?= $_POST['delivery_speed'] ?? $_GET['delivery_speed'] ?? 'standard' ?>&insurance=<?= isset($_POST['insurance']) || isset($_GET['insurance']) ? '1' : '0' ?>" class="btn btn-sm <?= $active_filter === 'fastest' ? 'btn-info' : 'btn-outline-light' ?>">Самый быстрый</a>
+                <a href="?filter=all&carrier=<?= $_POST['carrier'] ?? $_GET['carrier'] ?? '' ?>&from=<?= $_POST['from'] ?? $_GET['from'] ?? '' ?>&to=<?= $_POST['to'] ?? $_GET['to'] ?? '' ?>&package_type=<?= $_POST['package_type'] ?? $_GET['package_type'] ?? '' ?>&weight=<?= $_POST['weight'] ?? $_GET['weight'] ?? ($_POST['package_type'] === 'letter' ? ($_POST['letter_count'] ?? $_GET['letter_count'] ?? 1) * 0.02 : '') ?>&letter_count=<?= $_POST['letter_count'] ?? $_GET['letter_count'] ?? '' ?>&insurance=<?= isset($_POST['insurance']) || isset($_GET['insurance']) ? '1' : '0' ?>" class="btn btn-sm <?= $active_filter === 'all' ? 'btn-primary' : 'btn-outline-light' ?>">Все</a>
+                <a href="?filter=cheapest&carrier=<?= $_POST['carrier'] ?? $_GET['carrier'] ?? '' ?>&from=<?= $_POST['from'] ?? $_GET['from'] ?? '' ?>&to=<?= $_POST['to'] ?? $_GET['to'] ?? '' ?>&package_type=<?= $_POST['package_type'] ?? $_GET['package_type'] ?? '' ?>&weight=<?= $_POST['weight'] ?? $_GET['weight'] ?? ($_POST['package_type'] === 'letter' ? ($_POST['letter_count'] ?? $_GET['letter_count'] ?? 1) * 0.02 : '') ?>&letter_count=<?= $_POST['letter_count'] ?? $_GET['letter_count'] ?? '' ?>&insurance=<?= isset($_POST['insurance']) || isset($_GET['insurance']) ? '1' : '0' ?>" class="btn btn-sm <?= $active_filter === 'cheapest' ? 'btn-success' : 'btn-outline-light' ?>">Самый дешевый</a>
+                <a href="?filter=fastest&carrier=<?= $_POST['carrier'] ?? $_GET['carrier'] ?? '' ?>&from=<?= $_POST['from'] ?? $_GET['from'] ?? '' ?>&to=<?= $_POST['to'] ?? $_GET['to'] ?? '' ?>&package_type=<?= $_POST['package_type'] ?? $_GET['package_type'] ?? '' ?>&weight=<?= $_POST['weight'] ?? $_GET['weight'] ?? ($_POST['package_type'] === 'letter' ? ($_POST['letter_count'] ?? $_GET['letter_count'] ?? 1) * 0.02 : '') ?>&letter_count=<?= $_POST['letter_count'] ?? $_GET['letter_count'] ?? '' ?>&insurance=<?= isset($_POST['insurance']) || isset($_GET['insurance']) ? '1' : '0' ?>" class="btn btn-sm <?= $active_filter === 'fastest' ? 'btn-info' : 'btn-outline-light' ?>">Самый быстрый</a>
             </div>
         </div>
         <div class="card-body">
@@ -470,7 +461,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <td>~<?= formatDeliveryTime($res['hours']) ?></td>
                             <td><?= round($res['distance']) ?> км</td>
                             <td>
-                                <a href="order_form.php?carrier=<?= $res['carrier']['id'] ?>&weight=<?= ($_POST['package_type'] === 'letter' ? ($_POST['letter_count'] ?? 1) * 0.02 : $_POST['weight'] ?? 1) ?>&cost=<?= $res['cost'] ?>&from=<?= $_POST['from'] ?>&to=<?= $_POST['to'] ?>" 
+                                <a href="order_form.php?carrier=<?= $res['carrier']['id'] ?>&weight=<?= ($_POST['package_type'] === 'letter' ? ($_POST['letter_count'] ?? 1) * 0.02 : $_POST['weight'] ?? 1) ?>&cost=<?= $res['cost'] ?>&from=<?= $_POST['from'] ?>&to=<?= $_POST['to'] ?>"
                                    class="btn btn-sm btn-success">Оформить</a>
                             </td>
                         </tr>
@@ -502,6 +493,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 let selected = null;
+let map = null;
+let markers = [];
+let routeLine = null;
+let allOffices = <?php echo json_encode($all_offices, JSON_UNESCAPED_UNICODE); ?>;
+let currentCarrierOffices = [];
 
 function selectCarrier(id, name) {
     if (selected) selected.classList.remove('selected');
@@ -512,21 +508,24 @@ function selectCarrier(id, name) {
     document.getElementById('selected-carrier').value = id;
     document.getElementById('carrier-name').textContent = name;
     document.getElementById('calc-form').style.display = 'block';
+    document.getElementById('map-section').style.display = 'block';
 
     // Load offices with search functionality
     fetch('get_offices.php?carrier=' + id)
         .then(r => r.json())
         .then(data => {
+            currentCarrierOffices = data;
+            
             ['from', 'to'].forEach(f => {
                 const sel = document.querySelector(`select[name="${f}"]`);
-                sel.innerHTML = '<option value="">Выберите</option>' + 
+                sel.innerHTML = '<option value="">Выберите</option>' +
                     data.map(o => `<option value="${o.id}">${o.city} — ${o.address}</option>`).join('');
             });
-            
+
             // Initialize search for newly loaded selects
             const fromSelect = document.querySelector('select[name="from"]');
             const toSelect = document.querySelector('select[name="to"]');
-            
+
             // Remove existing search functionality if it exists to prevent duplication
             if (fromSelect && fromSelect.parentNode && fromSelect.parentNode.classList.contains('custom-select-wrapper')) {
                 const wrapper = fromSelect.parentNode;
@@ -540,11 +539,189 @@ function selectCarrier(id, name) {
                 parent.replaceChild(toSelect, wrapper);
                 toSelect.style.display = 'block'; // Show the original select again
             }
-            
+
             // Add search functionality to the selects
             if (fromSelect) addSearchToSelect(fromSelect);
             if (toSelect) addSearchToSelect(toSelect);
+            
+            // Update map with offices for the selected carrier
+            updateMapOffices(id);
         });
+}
+
+// Initialize map
+function initMap() {
+    if (!map) {
+        map = L.map('map').setView([53.904133, 27.557541], 6); // Center on Belarus
+        
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+    }
+}
+
+// Update map with offices for selected carrier
+function updateMapOffices(carrierId) {
+    if (!map) initMap();
+    
+    // Clear existing markers
+    markers.forEach(marker => map.removeLayer(marker));
+    markers = [];
+    
+    // Add markers for the selected carrier
+    allOffices.forEach(office => {
+        if (office.carrier_id == carrierId) {
+            const marker = L.marker([office.lat, office.lng]).addTo(map)
+                .bindPopup(`<b>${office.carrier_name}</b><br>${office.city} — ${office.address}`);
+            
+            marker.office = office;
+            markers.push(marker);
+        }
+    });
+    
+    // Fit bounds to show all markers
+    if (markers.length > 0) {
+        const group = new L.featureGroup(markers);
+        map.fitBounds(group.getBounds().pad(0.1));
+    }
+}
+
+// Find nearest office to user's location
+function findNearestOffice(type) {
+    if (!navigator.geolocation) {
+        alert('Геолокация не поддерживается вашим браузером');
+        return;
+    }
+    
+    navigator.geolocation.getCurrentPosition(function(position) {
+        const userLat = position.coords.latitude;
+        const userLng = position.coords.longitude;
+        
+        let nearestOffice = null;
+        let minDistance = Infinity;
+        
+        currentCarrierOffices.forEach(office => {
+            // Calculate distance using Haversine formula
+            const distance = calculateDistance(userLat, userLng, office.lat, office.lng);
+            if (distance < minDistance) {
+                minDistance = distance;
+                nearestOffice = office;
+            }
+        });
+        
+        if (nearestOffice) {
+            document.getElementById(`${type}-select`).value = nearestOffice.id;
+            document.getElementById(`selected-${type}`).value = nearestOffice.id;
+            
+            // Highlight the selected office on the map
+            highlightOfficeOnMap(nearestOffice, type);
+            
+            alert(`Ближайшее отделение: ${nearestOffice.city} — ${nearestOffice.address}`);
+        }
+    }, function() {
+        alert('Не удалось получить ваше местоположение');
+    });
+}
+
+// Calculate distance between two points using Haversine formula
+function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Radius of the Earth in kilometers
+    const dLat = deg2rad(lat2 - lat1);
+    const dLon = deg2rad(lon2 - lon1);
+    const a = 
+        Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
+        Math.sin(dLon/2) * Math.sin(dLon/2); 
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+    return R * c; // Distance in kilometers
+}
+
+function deg2rad(deg) {
+    return deg * (Math.PI/180);
+}
+
+// Highlight selected office on map
+function highlightOfficeOnMap(office, type) {
+    if (!map) return;
+    
+    // Remove previous highlights
+    markers.forEach(marker => {
+        const markerEl = marker._icon;
+        if (markerEl) {
+            markerEl.classList.remove('departure', 'arrival');
+        }
+    });
+    
+    // Find and highlight the selected marker
+    const marker = markers.find(m => m.office.id == office.id);
+    if (marker) {
+        const markerEl = marker._icon;
+        if (markerEl) {
+            markerEl.classList.add(type === 'from' ? 'departure' : 'arrival');
+        }
+        
+        // Pan to the selected office
+        map.panTo([marker.getLatLng().lat, marker.getLatLng().lng]);
+    }
+}
+
+// Calculate and display route
+function calculateRoute() {
+    const fromId = document.getElementById('selected-from').value;
+    const toId = document.getElementById('selected-to').value;
+    
+    if (!fromId || !toId) {
+        alert('Пожалуйста, выберите отделения отправки и получения');
+        return;
+    }
+    
+    if (!map) initMap();
+    
+    // Remove previous route if exists
+    if (routeLine) {
+        map.removeLayer(routeLine);
+    }
+    
+    // Get coordinates of selected offices
+    const fromOffice = allOffices.find(o => o.id == fromId);
+    const toOffice = allOffices.find(o => o.id == toId);
+    
+    if (fromOffice && toOffice) {
+        // For demonstration purposes, we'll create a direct line
+        // In a real implementation, you would use a routing service like OSRM or GraphHopper
+        const routeCoords = [
+            [fromOffice.lat, fromOffice.lng],
+            [toOffice.lat, toOffice.lng]
+        ];
+        
+        routeLine = L.polyline(routeCoords, {
+            color: '#e74c3c',
+            weight: 4,
+            opacity: 0.7,
+            dashArray: '10, 10'
+        }).addTo(map);
+        
+        // Update route info
+        document.getElementById('route-distance').textContent = calculateDistance(fromOffice.lat, fromOffice.lng, toOffice.lat, toOffice.lng).toFixed(2) + ' км';
+        document.getElementById('route-time').textContent = 'Примерно ' + (calculateDistance(fromOffice.lat, fromOffice.lng, toOffice.lat, toOffice.lng) / 60).toFixed(1) + ' часов';
+        document.getElementById('route-carrier').textContent = fromOffice.carrier_name;
+        document.getElementById('route-info').style.display = 'block';
+        
+        // Update formula display
+        document.getElementById('formula-from').textContent = `${fromOffice.city} — ${fromOffice.address}`;
+        document.getElementById('formula-to').textContent = `${toOffice.city} — ${toOffice.address}`;
+        document.getElementById('formula-distance').textContent = calculateDistance(fromOffice.lat, fromOffice.lng, toOffice.lat, toOffice.lng).toFixed(2) + ' км';
+        document.getElementById('formula-time').textContent = (calculateDistance(fromOffice.lat, fromOffice.lng, toOffice.lat, toOffice.lng) / 60).toFixed(1) + ' часов';
+        
+        // Fit map to show both points and the route
+        map.fitBounds(routeLine.getBounds().pad(0.2));
+    }
+}
+
+// Toggle formula display
+function toggleFormula() {
+    const formulaDisplay = document.getElementById('formula-display');
+    formulaDisplay.style.display = formulaDisplay.style.display === 'block' ? 'none' : 'block';
 }
 
 // Add search functionality to select elements with collapsible dropdown
@@ -564,12 +741,12 @@ function addSearchToSelect(selectElement) {
         }
         return;
     }
-    
+
     // Create a wrapper div for the custom select
     const wrapper = document.createElement('div');
     wrapper.className = 'custom-select-wrapper';
     wrapper.style.position = 'relative';
-    
+
     // Create input for search
     const searchInput = document.createElement('input');
     searchInput.type = 'text';
@@ -578,7 +755,7 @@ function addSearchToSelect(selectElement) {
     searchInput.style.marginBottom = '5px';
     searchInput.style.cursor = 'pointer';
     searchInput.readOnly = false; // Allow typing for search functionality
-    
+
     // Create a dropdown container that's initially hidden
     const dropdownContainer = document.createElement('div');
     dropdownContainer.style.position = 'absolute';
@@ -593,27 +770,27 @@ function addSearchToSelect(selectElement) {
     dropdownContainer.style.overflowY = 'auto';
     dropdownContainer.style.display = 'none'; // Initially hidden
     dropdownContainer.style.boxShadow = '0 0.5rem 1rem rgba(0,0,0,0.15)';
-    
+
     // Add click event to toggle dropdown visibility
     searchInput.addEventListener('click', function(e) {
         e.stopPropagation();
         const isHidden = dropdownContainer.style.display === 'none';
         dropdownContainer.style.display = isHidden ? 'block' : 'none';
-        
+
         // If showing, populate with all options
         if (isHidden) {
             updateDropdownOptions(selectElement, '');
         }
     });
-    
+
     // Populate dropdown with options
     function updateDropdownOptions(originalSelect, searchTerm = '') {
         dropdownContainer.innerHTML = '';
         const options = Array.from(originalSelect.options);
-        
+
         options.forEach(option => {
             if (option.value === '') return; // Skip empty option
-            
+
             const optionText = option.text.toLowerCase();
             if (searchTerm === '' || optionText.includes(searchTerm.toLowerCase())) {
                 const optionElement = document.createElement('div');
@@ -621,46 +798,46 @@ function addSearchToSelect(selectElement) {
                 optionElement.style.padding = '8px 12px';
                 optionElement.style.cursor = 'pointer';
                 optionElement.style.borderBottom = '1px solid #eee';
-                
+
                 optionElement.addEventListener('click', function() {
                     originalSelect.value = option.value;
                     searchInput.value = option.text;
                     dropdownContainer.style.display = 'none';
-                    
+
                     // Trigger change event on the original select
                     originalSelect.dispatchEvent(new Event('change'));
                 });
-                
+
                 optionElement.addEventListener('mouseover', function() {
                     this.style.backgroundColor = '#f8f9fa';
                 });
-                
+
                 optionElement.addEventListener('mouseout', function() {
                     this.style.backgroundColor = 'white';
                 });
-                
+
                 dropdownContainer.appendChild(optionElement);
             }
         });
     }
-    
+
     // Add search event
     searchInput.addEventListener('input', function() {
         const searchTerm = this.value;
         updateDropdownOptions(selectElement, searchTerm);
-        
+
         // Show dropdown when searching
         dropdownContainer.style.display = 'block';
     });
-    
+
     // Replace the select with the wrapper
     selectElement.parentNode.insertBefore(wrapper, selectElement);
     wrapper.appendChild(searchInput);
     wrapper.appendChild(dropdownContainer);
-    
+
     // Hide the original select
     selectElement.style.display = 'none';
-    
+
     // Initialize with the currently selected value
     if (selectElement.value) {
         const selectedOption = selectElement.options[selectElement.selectedIndex];
@@ -668,7 +845,7 @@ function addSearchToSelect(selectElement) {
             searchInput.value = selectedOption.text;
         }
     }
-    
+
     // Add global click listener to close dropdown when clicking outside
     document.addEventListener('click', function(e) {
         if (!wrapper.contains(e.target)) {
@@ -677,25 +854,29 @@ function addSearchToSelect(selectElement) {
     });
 }
 
-
 function toggleFields(type) {
     const isLetter = type === 'letter';
     document.getElementById('weight-div').style.display = isLetter ? 'none' : 'block';
     document.getElementById('letter-div').style.display = isLetter ? 'block' : 'none';
-    document.getElementById('gabarit-div').style.display = isLetter ? 'none' : 'block';
 }
 
 // Initialize search for select elements when DOM is loaded if carrier is already selected
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialize map
+    initMap();
+    
     // Check if a carrier is already selected (e.g., from a previous form submission or GET parameter)
     const selectedCarrier = document.getElementById('selected-carrier');
     if (selectedCarrier && selectedCarrier.value) {
         // Initialize search for existing selects
         const fromSelect = document.querySelector('select[name="from"]');
         const toSelect = document.querySelector('select[name="to"]');
-        
+
         if (fromSelect) addSearchToSelect(fromSelect);
         if (toSelect) addSearchToSelect(toSelect);
+        
+        // Update map with offices for the selected carrier
+        updateMapOffices(selectedCarrier.value);
     }
 });
 
@@ -705,7 +886,7 @@ function toggleTheme() {
     // Save theme preference in localStorage
     const isDark = document.body.classList.contains('dark');
     localStorage.setItem('theme', isDark ? 'dark' : 'light');
-    
+
     // Apply theme to all iframes and child elements
     applyThemeToPage(isDark ? 'dark' : 'light');
 }
@@ -725,7 +906,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (savedTheme === 'dark') {
         document.body.classList.add('dark');
     }
-    
+
     // Set up a global theme listener for cross-page consistency
     window.addEventListener('storage', function(e) {
         if (e.key === 'theme') {
@@ -736,7 +917,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     });
-    
+
     // Prevent scrolling to top when filter links are clicked
     const filterLinks = document.querySelectorAll('.btn-group a');
     filterLinks.forEach(link => {
@@ -746,7 +927,7 @@ document.addEventListener('DOMContentLoaded', function() {
             sessionStorage.setItem('scrollPosition', window.scrollY);
         });
     });
-    
+
     // Restore scroll position if available
     const scrollPosition = sessionStorage.getItem('scrollPosition');
     if (scrollPosition) {
