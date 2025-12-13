@@ -177,13 +177,7 @@ function formatDeliveryTime($hours) {
         <div class="card-body">
             <h4 class="text-center mb-4">Расчёт для: <strong id="carrier-name"><?=(isset($_POST['carrier']) ? htmlspecialchars($carriers[array_search($_POST['carrier'], array_column($carriers, 'id'))]['name'] ?? '') : (isset($_GET['carrier']) ? htmlspecialchars($carriers[array_search($_GET['carrier'], array_column($carriers, 'id'))]['name'] ?? '') : ''))?></strong></h4>
             
-            <!-- Поле для ввода адреса получателя -->
-            <div class="row g-3 mb-4">
-                <div class="col-md-12">
-                    <label>Адрес получателя</label>
-                    <input type="text" id="recipient-address" class="form-control" placeholder="Введите адрес получателя">
-                </div>
-            </div>
+
             
             <!-- Карта -->
             <div class="row g-3 mb-4">
@@ -223,7 +217,7 @@ function formatDeliveryTime($hours) {
                         <button type="button" class="btn btn-sm btn-outline-secondary change-button" onclick="changeToOffice()">Изменить</button>
                     </div>
                     
-                    <button type="button" class="btn btn-info mt-2" onclick="findNearestToOffice()" id="find-nearest-to-btn" disabled>Выбрать ближайшее (получение)</button>
+
                 </div>
             </div>
             
@@ -236,6 +230,7 @@ function formatDeliveryTime($hours) {
             
             <!-- Форма для остальных параметров -->
             <form method="POST" id="calculation-form">
+                <input type="hidden" name="cost" id="calculated-cost" value="<?php echo $result ? $result['cost'] : ''; ?>">
                 <input type="hidden" name="carrier" id="selected-carrier" value="<?=$_POST['carrier'] ?? $_GET['carrier'] ?? ''?>">
                 <input type="hidden" name="from" id="selected-from" value="<?=$_POST['from'] ?? $_GET['from'] ?? ''?>">
                 <input type="hidden" name="to" id="selected-to" value="<?=$_POST['to'] ?? $_GET['to'] ?? ''?>">
@@ -467,12 +462,12 @@ function selectFromOffice(officeId, city, address) {
     
     // Активируем поле для получения
     document.getElementById('search-to').disabled = false;
-    document.getElementById('find-nearest-to-btn').disabled = false;
     
     // Активируем кнопку показа маршрута если выбраны оба офиса
     if (selectedToOffice) {
         document.getElementById('show-route-btn').disabled = false;
         document.getElementById('calculate-btn').disabled = false;
+        document.getElementById('show-formula-btn').disabled = false;
     }
 }
 
@@ -487,6 +482,7 @@ function selectToOffice(officeId, city, address) {
     if (selectedFromOffice) {
         document.getElementById('show-route-btn').disabled = false;
         document.getElementById('calculate-btn').disabled = false;
+        document.getElementById('show-formula-btn').disabled = false;
     }
 }
 
@@ -497,10 +493,10 @@ function changeFromOffice() {
     document.getElementById('selected-from-container').style.display = 'none';
     document.getElementById('show-route-btn').disabled = true;
     document.getElementById('calculate-btn').disabled = true;
+    document.getElementById('show-formula-btn').disabled = true;
     
     // Деактивируем поле для получения
     document.getElementById('search-to').disabled = true;
-    document.getElementById('find-nearest-to-btn').disabled = true;
     document.getElementById('selected-to-container').style.display = 'none';
     selectedToOffice = null;
     document.getElementById('selected-to').value = '';
@@ -519,6 +515,7 @@ function changeToOffice() {
     document.getElementById('selected-to-container').style.display = 'none';
     document.getElementById('show-route-btn').disabled = true;
     document.getElementById('calculate-btn').disabled = true;
+    document.getElementById('show-formula-btn').disabled = true;
     
     // Удаляем маршрут если он был
     if (routeLayer) {
@@ -565,59 +562,7 @@ function findNearestFromOffice() {
     }
 }
 
-// Поиск ближайшего офиса получения
-function findNearestToOffice() {
-    const recipientAddress = document.getElementById('recipient-address').value.trim();
-    
-    if (!recipientAddress) {
-        alert("Пожалуйста, сначала введите адрес получателя.");
-        return;
-    }
-    
-    // Геокодируем адрес получателя
-    const geocodeUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(recipientAddress)}`;
-    
-    fetch(geocodeUrl)
-        .then(response => response.json())
-        .then(data => {
-            if (data && data.length > 0) {
-                const lat = parseFloat(data[0].lat);
-                const lon = parseFloat(data[0].lon);
-                
-                // Находим ближайший офис к адресу получателя
-                let nearestOffice = null;
-                let minDistance = Infinity;
-                
-                offices.forEach(office => {
-                    if (office.lat && office.lng) {
-                        const distance = Math.sqrt(
-                            Math.pow(office.lat - lat, 2) + 
-                            Math.pow(office.lng - lon, 2)
-                        );
-                        
-                        if (distance < minDistance) {
-                            minDistance = distance;
-                            nearestOffice = office;
-                        }
-                    }
-                });
-                
-                if (nearestOffice) {
-                    selectToOffice(nearestOffice.id, nearestOffice.city, nearestOffice.address);
-                    // Центрируем карту на выбранном офисе
-                    map.setView([nearestOffice.lat, nearestOffice.lng], 13);
-                } else {
-                    alert("Не удалось найти ближайшее отделение для указанного адреса.");
-                }
-            } else {
-                alert("Не удалось найти координаты для указанного адреса.");
-            }
-        })
-        .catch(error => {
-            console.error('Error geocoding address:', error);
-            alert("Ошибка при определении координат адреса. Пожалуйста, уточните адрес.");
-        });
-}
+
 
 // Показ маршрута
 function showRoute() {
@@ -636,20 +581,15 @@ function showRoute() {
     const toOffice = offices.find(o => o.id == selectedToOffice);
     
     if (fromOffice && toOffice) {
-        // Используем OpenRouteService API для получения маршрута по дорогам
-        const routeUrl = `https://api.openrouteservice.org/v2/directions/driving-car?api_key=58d8037251918540552132b4a16a423c5152a012131018f03c689f0673491498&start=${fromOffice.lng},${fromOffice.lat}&end=${toOffice.lng},${toOffice.lat}`;
+        // Используем GraphHopper API для получения маршрута по дорогам (бесплатный API ключ)
+        const routeUrl = `https://graphhopper.com/api/1/route?point=${fromOffice.lat},${fromOffice.lng}&point=${toOffice.lat},${toOffice.lng}&vehicle=car&locale=ru&elevation=false&instructions=true&calc_points=true&key=9d7e367d-470c-4f72-86e8-74018d48d361`;
         
-        fetch(routeUrl, {
-            method: 'GET',
-            headers: {
-                'Authorization': '58d8037251918540552132b4a16a423c5152a012131018f03c689f0673491498'
-            }
-        })
+        fetch(routeUrl)
         .then(response => response.json())
         .then(data => {
-            if (data && data.features && data.features[0] && data.features[0].geometry && data.features[0].geometry.coordinates) {
-                // Преобразуем координаты из формата [lng, lat] в [lat, lng] для Leaflet
-                const routeCoords = data.features[0].geometry.coordinates.map(coord => [coord[1], coord[0]]);
+            if (data.paths && data.paths[0] && data.paths[0].points) {
+                // Преобразуем координаты из формата [lat, lng] в [lng, lat] для Leaflet
+                const routeCoords = data.paths[0].points.coordinates.map(coord => [coord[1], coord[0]]);
                 
                 routeLayer = L.polyline(routeCoords, {color: 'red', weight: 4}).addTo(map);
                 
@@ -658,11 +598,11 @@ function showRoute() {
                 map.fitBounds(bounds, {padding: [50, 50]});
                 
                 // Получаем расстояние и время из ответа API
-                const summary = data.features[0].properties.summary;
-                const distance = summary.distance / 1000; // преобразуем в км
-                const duration = summary.duration / 60; // преобразуем в минуты
+                const path = data.paths[0];
+                const distance = path.distance / 1000; // преобразуем в км
+                const duration = path.time / (1000 * 60 * 60); // преобразуем в часы
                 
-                alert(`Маршрут построен. Расстояние: ${distance.toFixed(2)} км, Время: ${Math.round(duration)} мин.`);
+                alert(`Маршрут построен. Расстояние: ${distance.toFixed(2)} км, Время: ${duration.toFixed(2)} ч.`);
             } else {
                 // Если API не сработал, рисуем прямую линию как fallback
                 const routeCoords = [
@@ -822,34 +762,41 @@ function redirectToOrderForm() {
     const insurance = formData.get('insurance') ? 1 : 0;
     const carrierId = document.getElementById('selected-carrier').value;
     
-    // Вычисляем стоимость (аналогично серверной логике)
-    const carrier = <?php echo json_encode($carriers); ?>.find(c => c.id == carrierId);
+    // Вычисляем стоимость с помощью AJAX
+    const calculateData = {
+        carrier_id: carrierId,
+        from_office: selectedFromOffice,
+        to_office: selectedToOffice,
+        weight: weight,
+        package_type: packageType,
+        insurance: insurance ? 1 : 0,
+        letter_count: parseInt(formData.get('letter_count') || 1)
+    };
     
-    if (carrier) {
-        // Используем приблизительное расстояние для расчета стоимости
-        const fromOffice = offices.find(o => o.id == selectedFromOffice);
-        const toOffice = offices.find(o => o.id == selectedToOffice);
-        
-        if (fromOffice && toOffice) {
-            const distance = Math.sqrt(
-                Math.pow(toOffice.lat - fromOffice.lat, 2) + 
-                Math.pow(toOffice.lng - fromOffice.lng, 2)
-            ) * 111; // Приблизительное расстояние в км
-            
-            let cost = parseFloat(carrier.base_cost) + 
-                      weight * parseFloat(carrier.cost_per_kg) + 
-                      distance * parseFloat(carrier.cost_per_km);
-            
-            if (insurance) cost *= 1.02;
-            if (packageType === 'letter') cost = Math.max(cost, 2.5);
-            
-            cost = Math.round(cost * 100) / 100; // округление до 2 знаков
+    fetch('calculate_cost.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: Object.keys(calculateData).map(key => `${encodeURIComponent(key)}=${encodeURIComponent(calculateData[key])}`).join('&')
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Обновляем скрытое поле с рассчитанной стоимостью
+            document.getElementById('calculated-cost').value = data.cost;
             
             // Перенаправляем на форму заказа с параметрами
-            const url = `order_form.php?carrier=${carrierId}&weight=${weight}&cost=${cost}&from=${selectedFromOffice}&to=${selectedToOffice}&package_type=${packageType}&insurance=${insurance}`;
+            const url = `order_form.php?carrier=${carrierId}&weight=${weight}&cost=${data.cost}&from=${selectedFromOffice}&to=${selectedToOffice}&package_type=${packageType}&insurance=${insurance}`;
             window.location.href = url;
+        } else {
+            alert('Ошибка при расчете стоимости: ' + (data.error || 'Неизвестная ошибка'));
         }
-    }
+    })
+    .catch(error => {
+        console.error('Error calculating cost:', error);
+        alert('Ошибка при расчете стоимости. Попробуйте снова.');
+    });
 }
 
 // Поиск офисов
@@ -932,6 +879,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (selectedFromOffice && selectedToOffice) {
         document.getElementById('show-route-btn').disabled = false;
         document.getElementById('calculate-btn').disabled = false;
+        document.getElementById('show-formula-btn').disabled = false;
     }
     
     // Prevent scrolling to top when filter links are clicked
