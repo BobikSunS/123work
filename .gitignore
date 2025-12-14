@@ -1,34 +1,12 @@
 ```
-# Backup files
-*.backup
-
-# Environment
-.env
-.env.local
-*.env.*
-
-# Logs and temp files
-*.log
-*.tmp
-*.swp
-
-# Editors
-.vscode/
-.idea/
-
-# Dependencies
-node_modules/
-venv/
-.venv/
-__pycache__/
-*.pyc
-
-# Build artifacts
-dist/
-build/
-target/
-
-# System files
-.DS_Store
-Thumbs.db
+# Documentation and test files that were deleted
+ROAD_ROUTING_SETUP.md
+ROUTE_INSTRUCTIONS.md
+new_showRoute_function.js
+populate_routes.php
+script.js
+test_calculation.php
+test_db.php
+test_osrm_connection.php
+test_route.php
 ```
