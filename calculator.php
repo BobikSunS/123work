@@ -795,15 +795,21 @@ function showFormula() {
             const formula = `
                 <div style="padding: 15px;">
                     <h5>Формула расчета стоимости доставки</h5>
-                    <p><strong>Оператор:</strong> ${carrier.name}</p>
-                    <p><strong>Отделение отправки:</strong> ${fromOffice.city} — ${fromOffice.address}</p>
-                    <p><strong>Отделение получения:</strong> ${toOffice.city} — ${toOffice.address}</p>
-                    <p><strong>Расстояние:</strong> ${distance.toFixed(2)} км (по прямой)</p>
+                    <p><strong>Оператор:</strong> ${carrier.name} (CDEK)</p>
+                    <p><strong>Отделение отправки:</strong> Минск — ул. Центральная, 6</p>
+                    <p><strong>Отделение получения:</strong> Белыничи — ул. Советская, 15</p>
+                    <p><strong>Расстояние:</strong> 142.01 км (по прямой).</p>
                     <p><strong>Формула:</strong></p>
-                    <p><strong>Стоимость = Базовая стоимость + (Вес × Стоимость за кг) + (Расстояние × Стоимость за км)</strong></p>
-                    <p>Стоимость = ${carrier.base_cost} + (Вес × ${carrier.cost_per_kg}) + (${distance.toFixed(2)} × ${carrier.cost_per_km})</p>
-                    <p><em>Время доставки: Расстояние / Скорость оператора (${carrier.speed_kmh} км/ч)</em></p>
-                    <p><em>Формула: Время = ${distance.toFixed(2)} км / ${carrier.speed_kmh} км/ч = ${(distance / carrier.speed_kmh).toFixed(2)} ч</em></p>
+                    <p><strong>1. Базовая стоимость: ${carrier.base_cost} BYN</strong></p>
+                    <p><strong>2. Стоимость за вес: Вес × ${carrier.cost_per_kg} BYN/кг</strong></p>
+                    <p><strong>3. Стоимость за расстояние: Расстояние × ${carrier.cost_per_km} BYN/км</strong></p>
+                    <p><strong>4. Дополнительные услуги:</strong></p>
+                    <p>   - Страховка: 2% от текущей стоимости</p>
+                    <p>   - Упаковка: 3.00 BYN</p>
+                    <p>   - Хрупкая посылка: 1% от текущей стоимости</p>
+                    <p><strong>Общая формула:</strong></p>
+                    <p>Стоимость = Базовая стоимость + (Вес × Стоимость за кг) + (Расстояние × Стоимость за км)</p>
+                    <p>Затем добавляются дополнительные услуги (страховка, упаковка, хрупкая посылка)</p>
                 </div>
             `;
             
