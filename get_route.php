@@ -18,8 +18,8 @@ if ($from_office_id <= 0 || $to_office_id <= 0) {
 }
 
 // First check if route already exists in database
-$stmt = $db->prepare("SELECT distance_km, duration_min, route_data FROM calculated_routes WHERE from_office_id = ? AND to_office_id = ?");
-$stmt->execute([$from_office_id, $to_office_id]);
+$stmt = $db->prepare("SELECT distance_km, duration_min, route_data FROM calculated_routes WHERE (from_office_id = ? AND to_office_id = ?) OR (from_office_id = ? AND to_office_id = ?)");
+$stmt->execute([$from_office_id, $to_office_id, $to_office_id, $from_office_id]);
 $existing_route = $stmt->fetch();
 
 if ($existing_route) {
@@ -54,12 +54,18 @@ $osrm_url = "https://router.project-osrm.org/route/v1/driving/{$from_office['lng
 $ch = curl_init();
 curl_setopt($ch, CURLOPT_URL, $osrm_url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+curl_setopt($ch, CURLOPT_TIMEOUT, 15); // Increased timeout
 curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
 curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'); // Add user agent
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'Accept: application/json',
+    'Content-Type: application/json'
+]);
 
 $response = curl_exec($ch);
 $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+$error = curl_error($ch);
 curl_close($ch);
 
 if ($http_code !== 200) {
@@ -85,7 +91,8 @@ if ($http_code !== 200) {
 }
 
 if ($response === false) {
-    echo json_encode(['error' => 'Failed to get route from OSRM']);
+    error_log("cURL error: " . $error);
+    echo json_encode(['error' => 'Failed to get route from OSRM: ' . $error]);
     exit;
 }
 
