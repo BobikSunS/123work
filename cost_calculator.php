@@ -1,7 +1,7 @@
 <?php
 // Единая функция для расчета стоимости доставки
 
-function calculateDeliveryCost($db, $carrier_id, $from_office_id, $to_office_id, $weight, $package_type, $insurance, $letter_count = 1, $packaging = false, $fragile = false, $with_breakdown = false) {
+function calculateDeliveryCost($db, $carrier_id, $from_office_id, $to_office_id, $weight, $package_type, $insurance, $letter_count = 1, $packaging = false, $fragile = false, $with_breakdown = false, $cod_amount = 0) {
     // Получаем информацию о перевозчике
     $carrier = $db->prepare("SELECT * FROM carriers WHERE id = ?");
     $carrier->execute([$carrier_id]);
@@ -70,6 +70,7 @@ function calculateDeliveryCost($db, $carrier_id, $from_office_id, $to_office_id,
     $insurance_cost = 0;
     $packaging_cost = 0;
     $fragile_cost = 0;
+    $cod_cost = 0;
     
     // Apply insurance
     if ($insurance) {
@@ -89,6 +90,12 @@ function calculateDeliveryCost($db, $carrier_id, $from_office_id, $to_office_id,
         $cost += $fragile_cost;
     }
     
+    // Apply cash-on-delivery (5% of COD amount)
+    if ($cod_amount > 0) {
+        $cod_cost = $cod_amount * 0.05;  // 5% of COD amount
+        $cost += $cod_cost;
+    }
+    
     // Apply minimum cost for letters
     if ($package_type === 'letter') {
         $cost = max($cost, 2.5);
@@ -106,7 +113,8 @@ function calculateDeliveryCost($db, $carrier_id, $from_office_id, $to_office_id,
                 'distance_cost' => $distance_cost,
                 'insurance_cost' => $insurance_cost,
                 'packaging_cost' => $packaging_cost,
-                'fragile_cost' => $fragile_cost
+                'fragile_cost' => $fragile_cost,
+                'cod_cost' => $cod_cost
             ]
         ];
     } else {

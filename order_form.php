@@ -15,6 +15,7 @@ $preselected_package_type = isset($_GET['package_type']) ? $_GET['package_type']
 $preselected_insurance = isset($_GET['insurance']) ? (bool)$_GET['insurance'] : false;
 $preselected_packaging = isset($_GET['packaging']) ? (bool)$_GET['packaging'] : false;
 $preselected_fragile = isset($_GET['fragile']) ? (bool)$_GET['fragile'] : false;
+$preselected_cod_amount = isset($_GET['cod_amount']) ? floatval($_GET['cod_amount']) : 0;
 
 // Получаем информацию об офисах если они были переданы
 $from_office_info = null;
@@ -63,6 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Используем переданную стоимость из калькулятора, если она есть
             $cost = floatval($_POST['cost'] ?? $_GET['cost'] ?? 0);
+            $cod_amount = floatval($_POST['cod_amount'] ?? $_GET['cod_amount'] ?? 0);
             if ($cost <= 0) {
                 // Если стоимость не передана, вычисляем её с помощью универсальной функции
                 $package_type = 'parcel'; // по умолчанию
@@ -73,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $package_type = $_GET['package_type'];
                 }
                 
-                $result = calculateDeliveryCost($db, $carrier_id, $from_office, $to_office, $weight, $package_type, $insurance, $letter_count, $packaging, $fragile);
+                $result = calculateDeliveryCost($db, $carrier_id, $from_office, $to_office, $weight, $package_type, $insurance, $letter_count, $packaging, $fragile, false, $cod_amount);
                 $cost = $result['cost'];
             }
 
