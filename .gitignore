@@ -1,4 +1,1 @@
-```
-# Backup files
-*.bak
-```
+Nothing should be ignored since the changes only include PHP source files (.php) and no build artifacts, dependencies, or temporary files.

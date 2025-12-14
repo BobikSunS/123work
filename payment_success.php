@@ -135,8 +135,8 @@ $to_office = $to_office_stmt->fetch();
                         </div>
                         <div class="col-md-6">
                             <h6>Получатель:</h6>
-                            <p><?= htmlspecialchars($order['full_name'] ?? 'Н/Д') ?></p>
-                            <p><?= htmlspecialchars($order['home_address'] ?? 'Адрес не указан') ?></p>
+                            <p><?= htmlspecialchars($order['recipient_name'] ?? 'Н/Д') ?></p>
+                            <p><?= htmlspecialchars($order['recipient_address'] ?? 'Адрес не указан') ?></p>
                         </div>
                     </div>
                     
@@ -191,53 +191,6 @@ $to_office = $to_office_stmt->fetch();
                             <h6>Дополнительная информация:</h6>
                             <p>Документы: Накладная, Товарный чек</p>
                             <p>Способ оплаты: Онлайн</p>
-                            
-                            <?php
-                            // Get carrier information for cost calculation
-                            $carrier_stmt = $db->prepare("SELECT * FROM carriers WHERE id = ?");
-                            $carrier_stmt->execute([$order['carrier_id']]);
-                            $carrier = $carrier_stmt->fetch();
-                            
-                            // Calculate detailed cost breakdown
-                            $base_cost = $carrier['base_cost'] ?? 0;
-                            $weight_cost = $order['weight'] * ($carrier['cost_per_kg'] ?? 0);
-                            $insurance_cost = 0;
-                            $packaging_cost = 0;
-                            $fragile_cost = 0;
-                            
-                            // Calculate insurance cost (2% of base + weight cost)
-                            if (!empty($order['insurance'])) {
-                                $insurance_cost = round(($base_cost + $weight_cost) * 0.02, 2);
-                            }
-                            
-                            // Calculate packaging cost (fixed 3 BYN)
-                            if (!empty($order['packaging'])) {
-                                $packaging_cost = 3.00;
-                            }
-                            
-                            // Calculate fragile cost (1% of base + weight cost)
-                            if (!empty($order['fragile'])) {
-                                $fragile_cost = round(($base_cost + $weight_cost) * 0.01, 2);
-                            }
-                            
-                            $calculated_total = $base_cost + $weight_cost + $insurance_cost + $packaging_cost + $fragile_cost;
-                            ?>
-                            
-                            <h6 class="mt-3">Расшифровка стоимости:</h6>
-                            <ul class="list-unstyled">
-                                <li>Базовая стоимость: <?= number_format($base_cost, 2) ?> BYN</li>
-                                <li>Доставка (<?= $order['weight'] ?> кг × <?= number_format($carrier['cost_per_kg'] ?? 0, 2) ?> BYN/кг): <?= number_format($weight_cost, 2) ?> BYN</li>
-                                <?php if (!empty($order['insurance'])): ?>
-                                <li>Страховка (2%): <?= number_format($insurance_cost, 2) ?> BYN</li>
-                                <?php endif; ?>
-                                <?php if (!empty($order['packaging'])): ?>
-                                <li>Упаковка: <?= number_format($packaging_cost, 2) ?> BYN</li>
-                                <?php endif; ?>
-                                <?php if (!empty($order['fragile'])): ?>
-                                <li>Хрупкая посылка (1%): <?= number_format($fragile_cost, 2) ?> BYN</li>
-                                <?php endif; ?>
-                                <li class="fw-bold border-top pt-1">Итого: <?= number_format($calculated_total, 2) ?> BYN</li>
-                            </ul>
                         </div>
                         <div class="col-md-6 text-md-end">
                             <h6>Итого:</h6>
