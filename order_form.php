@@ -47,6 +47,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $insurance = isset($_POST['insurance']);
     $packaging = isset($_POST['packaging']);
     $fragile = isset($_POST['fragile']);
+    $cash_on_delivery = isset($_POST['cash_on_delivery']);
+    $cod_amount = $cash_on_delivery ? floatval($_POST['cod_amount'] ?? 0) : 0;
     $payment_method = trim($_POST['payment_method'] ?? 'cash');
     $comment = trim($_POST['comment'] ?? '');
 
@@ -576,6 +578,86 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+    
+    // Toggle Cash on Delivery section visibility
+    function toggleCashOnDelivery() {
+        const codCheckbox = document.getElementById('cash_on_delivery');
+        const codContainer = document.getElementById('cod-amount-container');
+        
+        if (codCheckbox.checked) {
+            codContainer.style.display = 'block';
+        } else {
+            codContainer.style.display = 'none';
+        }
+        
+        // Recalculate cost when COD is toggled
+        calculateOrderCost();
+    }
+    
+    // Function to calculate order cost dynamically
+    function calculateOrderCost() {
+        // Get form values
+        const carrierId = document.getElementById('carrier-select').value;
+        const fromOffice = document.getElementById('from-office-select').value;
+        const toOffice = document.getElementById('to-office-select').value;
+        const weight = parseFloat(document.querySelector('input[name="weight"]').value) || 1;
+        const insurance = document.getElementById('insurance').checked ? 1 : 0;
+        const packaging = document.getElementById('packaging').checked ? 1 : 0;
+        const fragile = document.getElementById('fragile').checked ? 1 : 0;
+        const codChecked = document.getElementById('cash_on_delivery').checked;
+        const codAmount = codChecked ? parseFloat(document.getElementById('cod_amount').value) || 0 : 0;
+        
+        // Validate required fields
+        if (!carrierId || !fromOffice || !toOffice) {
+            document.getElementById('order-cost').textContent = '0.00';
+            return;
+        }
+        
+        // Prepare data for AJAX request
+        const calculateData = {
+            carrier_id: carrierId,
+            from_office: fromOffice,
+            to_office: toOffice,
+            weight: weight,
+            package_type: 'parcel', // default to parcel
+            insurance: insurance,
+            packaging: packaging,
+            fragile: fragile,
+            letter_count: 1,
+            cash_on_delivery_amount: codAmount
+        };
+        
+        fetch('calculate_cost.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: Object.keys(calculateData).map(key => `${encodeURIComponent(key)}=${encodeURIComponent(calculateData[key])}`).join('&')
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Update the cost display
+                document.getElementById('order-cost').textContent = data.cost.toFixed(2);
+                
+                // Update the hidden cost field
+                document.querySelector('input[name="cost"]').value = data.cost;
+            } else {
+                console.error('Error calculating cost:', data.error);
+                document.getElementById('order-cost').textContent = 'Ошибка';
+            }
+        })
+        .catch(error => {
+            console.error('Error calculating cost:', error);
+            document.getElementById('order-cost').textContent = 'Ошибка';
+        });
+    }
+    
+    // Initialize COD visibility on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        toggleCashOnDelivery();
+        calculateOrderCost(); // Calculate initial cost
+    });
 });
 </script>
 </body>

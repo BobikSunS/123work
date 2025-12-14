@@ -1,7 +1,7 @@
 <?php
 // Единая функция для расчета стоимости доставки
 
-function calculateDeliveryCost($db, $carrier_id, $from_office_id, $to_office_id, $weight, $package_type, $insurance, $letter_count = 1, $packaging = false, $fragile = false, $with_breakdown = false) {
+function calculateDeliveryCost($db, $carrier_id, $from_office_id, $to_office_id, $weight, $package_type, $insurance, $letter_count = 1, $packaging = false, $fragile = false, $with_breakdown = false, $cash_on_delivery_amount = 0) {
     // Получаем информацию о перевозчике
     $carrier = $db->prepare("SELECT * FROM carriers WHERE id = ?");
     $carrier->execute([$carrier_id]);
@@ -58,20 +58,21 @@ function calculateDeliveryCost($db, $carrier_id, $from_office_id, $to_office_id,
         throw new Exception("Weight exceeds carrier limit");
     }
     
-    // Store initial costs for breakdown
+    // Calculate base cost using the new formula
     $base_cost = $carrier['base_cost'];
     $weight_cost = $weight * $carrier['cost_per_kg'];
     $distance_cost = $distance * $carrier['cost_per_km'];
+    $cod_cost = ($cash_on_delivery_amount > 0) ? $cash_on_delivery_amount * 0.05 : 0; // 5% of COD amount
     
     // Calculate base cost
-    $cost = $base_cost + $weight_cost + $distance_cost;
+    $cost = $base_cost + $weight_cost + $distance_cost + $cod_cost;
     
     // Store additional costs for breakdown
     $insurance_cost = 0;
     $packaging_cost = 0;
     $fragile_cost = 0;
     
-    // Apply insurance
+    // Apply insurance (after base calculation)
     if ($insurance) {
         $insurance_cost = $cost * 0.02;  // 2% of current cost
         $cost += $insurance_cost;
@@ -104,6 +105,7 @@ function calculateDeliveryCost($db, $carrier_id, $from_office_id, $to_office_id,
                 'base_cost' => $base_cost,
                 'weight_cost' => $weight_cost,
                 'distance_cost' => $distance_cost,
+                'cod_cost' => $cod_cost,
                 'insurance_cost' => $insurance_cost,
                 'packaging_cost' => $packaging_cost,
                 'fragile_cost' => $fragile_cost
