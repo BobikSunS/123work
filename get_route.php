@@ -46,10 +46,10 @@ if (!$from_office || !$to_office) {
     exit;
 }
 
-// Use OSRM for route calculation
+// Use OSRM for route calculation with turn-by-turn instructions
 // For this example, I'll use a public OSRM instance (project-osrm.org)
 // In production, you should run your own OSRM server
-$osrm_url = "https://router.project-osrm.org/route/v1/driving/{$from_office['lng']},{$from_office['lat']};{$to_office['lng']},{$to_office['lat']}?overview=full&geometries=polyline&steps=false";
+$osrm_url = "https://router.project-osrm.org/route/v1/driving/{$from_office['lng']},{$from_office['lat']};{$to_office['lng']},{$to_office['lat']}?overview=full&geometries=polyline&steps=true";
 
 $ch = curl_init();
 curl_setopt($ch, CURLOPT_URL, $osrm_url);
@@ -78,14 +78,15 @@ if ($http_code !== 200) {
     );
     
     // Save the straight-line distance as a fallback
-    $stmt = $db->prepare("INSERT INTO calculated_routes (from_office_id, to_office_id, distance_km, duration_min, route_data) VALUES (?, ?, ?, ?, ?)");
-    $stmt->execute([$from_office_id, $to_office_id, $distance, (int)($distance * 1.2), null]);
+    $stmt = $db->prepare("INSERT INTO calculated_routes (from_office_id, to_office_id, distance_km, duration_min, route_data, route_instructions) VALUES (?, ?, ?, ?, ?, ?)");
+    $stmt->execute([$from_office_id, $to_office_id, $distance, (int)($distance * 1.2), null, null]);
     
     echo json_encode([
         'success' => true,
         'distance' => $distance,
         'duration' => (int)($distance * 1.2), // Estimate duration based on distance
-        'route_data' => null
+        'route_data' => null,
+        'route_instructions' => null
     ]);
     exit;
 }
@@ -108,15 +109,37 @@ $distance_km = $route['distance'] / 1000; // Convert meters to kilometers
 $duration_min = (int)($route['duration'] / 60); // Convert seconds to minutes
 $geometry = $route['geometry'] ?? null;
 
+// Extract turn-by-turn instructions
+$instructions = [];
+if (isset($route['legs']) && is_array($route['legs'])) {
+    foreach ($route['legs'] as $leg) {
+        if (isset($leg['steps']) && is_array($leg['steps'])) {
+            foreach ($leg['steps'] as $step) {
+                $instructions[] = [
+                    'instruction' => $step['maneuver']['instruction'] ?? '',
+                    'type' => $step['maneuver']['type'] ?? '',
+                    'modifier' => $step['maneuver']['modifier'] ?? '',
+                    'distance' => $step['distance'] / 1000, // Convert to km
+                    'duration' => $step['duration'], // in seconds
+                    'geometry' => $step['geometry'] ?? null
+                ];
+            }
+        }
+    }
+}
+
+$route_instructions = !empty($instructions) ? json_encode($instructions, JSON_UNESCAPED_UNICODE) : null;
+
 // Save route to database
-$stmt = $db->prepare("INSERT INTO calculated_routes (from_office_id, to_office_id, distance_km, duration_min, route_data) VALUES (?, ?, ?, ?, ?)");
-$stmt->execute([$from_office_id, $to_office_id, $distance_km, $duration_min, json_encode($geometry)]);
+$stmt = $db->prepare("INSERT INTO calculated_routes (from_office_id, to_office_id, distance_km, duration_min, route_data, route_instructions) VALUES (?, ?, ?, ?, ?, ?)");
+$stmt->execute([$from_office_id, $to_office_id, $distance_km, $duration_min, json_encode($geometry), $route_instructions]);
 
 echo json_encode([
     'success' => true,
     'distance' => $distance_km,
     'duration' => $duration_min,
-    'route_data' => $geometry
+    'route_data' => $geometry,
+    'route_instructions' => $instructions
 ]);
 
 // Helper function to calculate straight-line distance (fallback)
