@@ -80,7 +80,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ];
                 
                 // Instead of showing the result on the same page, redirect to order form
-                $redirect_url = "order_form.php?carrier=$carrier_id&weight=$weight&cost=$cost&from=$from&to=$to&package_type=$type&insurance=" . ($insurance ? 1 : 0);
+                $packaging = isset($_POST['packaging']);
+                $fragile = isset($_POST['fragile']);
+                $redirect_url = "order_form.php?carrier=$carrier_id&weight=$weight&cost=$cost&from=$from&to=$to&package_type=$type&insurance=" . ($insurance ? 1 : 0) . "&packaging=" . ($packaging ? 1 : 0) . "&fragile=" . ($fragile ? 1 : 0);
                 header("Location: $redirect_url");
                 exit;
             }
@@ -802,6 +804,10 @@ function showFormula() {
                     <p><strong>Формула:</strong></p>
                     <p><strong>Стоимость = Базовая стоимость + (Вес × Стоимость за кг) + (Расстояние × Стоимость за км)</strong></p>
                     <p>Стоимость = ${carrier.base_cost} + (Вес × ${carrier.cost_per_kg}) + (${distance.toFixed(2)} × ${carrier.cost_per_km})</p>
+                    <p><strong>Дополнительные услуги:</strong></p>
+                    <p>• Страховка: +2% от текущей стоимости</p>
+                    <p>• Упаковка: +3.00 BYN</p>
+                    <p>• Хрупкая посылка: +1% от текущей стоимости</p>
                     <p><em>Время доставки: Расстояние / Скорость оператора (${carrier.speed_kmh} км/ч)</em></p>
                     <p><em>Формула: Время = ${distance.toFixed(2)} км / ${carrier.speed_kmh} км/ч = ${(distance / carrier.speed_kmh).toFixed(2)} ч</em></p>
                 </div>

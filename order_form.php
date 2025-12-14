@@ -443,9 +443,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <div class="col-md-4">
                                 <div class="form-check mb-2">
                                     <input class="form-check-input" type="checkbox" name="packaging" id="packaging" 
-                                           <?= (isset($_POST['packaging'])) ? 'checked' : '' ?>>
+                                           <?= (isset($_POST['packaging']) || $preselected_packaging) ? 'checked' : '' ?>>
                                     <label class="form-check-label fw-bold" for="packaging">
-                                        Упаковка (+5 BYN)
+                                        Упаковка (+3 BYN)
                                     </label>
                                 </div>
                                 <div class="form-text">Профессиональная упаковка</div>
@@ -454,7 +454,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <div class="col-md-4">
                                 <div class="form-check mb-2">
                                     <input class="form-check-input" type="checkbox" name="fragile" id="fragile" 
-                                           <?= (isset($_POST['fragile'])) ? 'checked' : '' ?>>
+                                           <?= (isset($_POST['fragile']) || $preselected_fragile) ? 'checked' : '' ?>>
                                     <label class="form-check-label fw-bold" for="fragile">
                                         Хрупкая посылка (+1%)
                                     </label>
