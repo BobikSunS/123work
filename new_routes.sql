@@ -34,7 +34,6 @@ CREATE TABLE `calculated_routes` (
   `distance_km` decimal(8,2) NOT NULL,
   `duration_min` int(11) NOT NULL,
   `route_data` text DEFAULT NULL,
-  `route_instructions` text DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
