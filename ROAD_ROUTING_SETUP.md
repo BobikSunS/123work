@@ -53,6 +53,36 @@ php reset_routes.php
 - Check your internet connection
 - The OSRM public server may be temporarily unavailable
 
+### Alternative Routing APIs
+
+If the default OSRM server is not accessible, you can configure alternative routing services:
+
+#### 1. OpenRouteService (ORS)
+- Register at https://openrouteservice.org/ for an API key
+- Update `get_route.php` to use ORS API instead of OSRM
+
+#### 2. GraphHopper
+- Register at https://www.graphhopper.com/ for an API key
+- Update `get_route.php` to use GraphHopper API instead of OSRM
+
+#### 3. Google Maps API
+- Get an API key from Google Cloud Console
+- Use Google Maps Directions API
+- Note: This service is not free beyond certain usage limits
+
+Example of how to modify `get_route.php` for OpenRouteService:
+```php
+// Replace the OSRM URL with OpenRouteService
+$ors_url = "https://api.openrouteservice.org/v2/directions/driving-car?api_key=YOUR_API_KEY&start={$from_office['lng']},{$from_office['lat']}&end={$to_office['lng']},{$to_office['lat']}";
+
+// Update headers for ORS
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'Authorization: YOUR_API_KEY',
+    'Accept: application/json',
+    'Content-Type: application/json'
+]);
+```
+
 ## Technical Details
 
 ### OSRM API Parameters Used
