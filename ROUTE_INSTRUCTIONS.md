@@ -1,63 +1,55 @@
-# Инструкция по использованию системы маршрутов
+# Road-Based Route Calculation System
 
-## Обзор
-Ваше приложение использует систему построения маршрутов между отделениями доставки. Маршруты строятся по дорогам с использованием данных OpenStreetMap через OSRM API.
+## Overview
+This system now calculates actual driving routes between postal offices using real road networks instead of straight-line distances. It uses the OSRM (Open Source Routing Machine) API to determine the actual path a vehicle would take between locations.
 
-## Как работает система
+## How It Works
 
-1. При выборе двух отделений (отправки и получения) в калькуляторе доставки
-2. Система сначала проверяет наличие готового маршрута в базе данных
-3. Если маршрут уже существует, он отображается сразу
-4. Если маршрута нет в базе, система обращается к OSRM API для получения реального маршрута по дорогам
-5. Рассчитанный маршрут сохраняется в базе данных для последующего использования
+1. When a user selects two offices in the calculator, the system first checks if a route has already been calculated and stored in the database
+2. If not found, it makes a request to the OSRM API to calculate the actual driving route
+3. The route geometry is returned in Google polyline format
+4. The route, distance, and duration are stored in the database for future use
+5. The route is displayed on the map following actual roads
 
-## Решение проблемы "Построение маршрута невозможно"
+## Key Improvements
 
-Если вы видите ошибку "Построение маршрута невозможно. Проверьте соединение с интернетом", это может быть связано с:
+1. **Polyline Decoding**: Added proper Google polyline decoding to handle OSRM geometry data
+2. **Enhanced Error Handling**: Multiple fallback mechanisms if OSRM API fails
+3. **Better API Parameters**: Using `geometries=polyline` and `steps=false` for optimal data
+4. **Coordinate Transformation**: Proper conversion between OSRM (lng, lat) and Leaflet (lat, lng) formats
+5. **Caching System**: Routes are stored in database to avoid repeated API calls
 
-1. **Ограничениями публичного OSRM API** - публичные сервера могут ограничивать количество запросов
-2. **Проблемами с CORS** - ограничениями между доменами
-3. **Временным недоступностью сервиса**
+## Files Updated
 
-## Улучшения в вашей системе
+- `get_route.php` - Backend route calculation with OSRM integration
+- `calculator.php` - Frontend JavaScript with polyline decoding
+- `reset_routes.php` - Utility to clear cached routes
 
-1. **Улучшенная обработка запросов** - добавлены заголовки User-Agent и увеличено время ожидания
-2. **Обратная совместимость** - если маршрут по дорогам недоступен, используется прямая линия как резервный вариант
-3. **Кэширование маршрутов** - все рассчитанные маршруты сохраняются в базе данных
-4. **Поддержка двусторонних маршрутов** - маршрут A->B автоматически работает и для B->A
+## API Used
 
-## Запуск предварительного расчета маршрутов
+- OSRM Router API: `https://router.project-osrm.org/route/v1/driving/{lng1},{lat1};{lng2},{lat2}?overview=full&geometries=polyline&steps=false`
+- Returns route geometry in Google polyline encoding format
+- Provides distance in meters and duration in seconds
 
-Для улучшения производительности и уменьшения зависимости от внешнего API, вы можете предварительно рассчитать маршруты между всеми отделениями:
+## Clearing Old Cached Routes
+
+To ensure the new road-based routing takes effect, clear the existing cached routes:
 
 ```bash
-php populate_routes.php
+php reset_routes.php
 ```
 
-Этот скрипт:
-- Рассчитывает прямолинейные расстояния между всеми парами отделений
-- Сохраняет результаты в базу данных
-- Ускоряет последующие запросы маршрутов
+After running this, all new route requests will fetch actual road-based routes from OSRM.
 
-## Технические детали
+## Troubleshooting
 
-- **Frontend**: JavaScript с библиотекой Leaflet и Leaflet.PolylineUtil
-- **Backend**: PHP скрипт `get_route.php` 
-- **База данных**: Таблица `calculated_routes` для хранения маршрутов
-- **API**: Публичный OSRM сервер (router.project-osrm.org)
+### If routes still appear as straight lines:
+1. Run the reset_routes.php script to clear old cached data
+2. Verify that the database connection in `db.php` is correct
+3. Check browser console for JavaScript errors
+4. Ensure that coordinates in the offices table are accurate
 
-## Возможные улучшения
-
-Для более стабильной работы в продакшене рекомендуется:
-
-1. **Локальный OSRM сервер** - запуск собственного экземпляра OSRM для Беларуси
-2. **Ограничение частоты запросов** - реализация очереди запросов
-3. **Резервные API** - использование альтернативных сервисов маршрутизации
-
-## Отладка
-
-При возникновении проблем с маршрутами:
-1. Проверьте консоль браузера (F12) на наличие ошибок
-2. Убедитесь, что координаты отделений в базе данных корректны
-3. Проверьте соединение с интернетом
-4. Проверьте логи Apache/Nginx на наличие ошибок PHP
+### If OSRM API fails:
+- The system will automatically fall back to straight-line distance calculation
+- Check your internet connection
+- The OSRM public server may be temporarily unavailable
