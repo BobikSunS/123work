@@ -49,7 +49,7 @@ if (!$from_office || !$to_office) {
 // Use OSRM for route calculation
 // For this example, I'll use a public OSRM instance (project-osrm.org)
 // In production, you should run your own OSRM server
-$osrm_url = "https://router.project-osrm.org/route/v1/driving/{$from_office['lng']},{$from_office['lat']};{$to_office['lng']},{$to_office['lat']}?overview=full&steps=true";
+$osrm_url = "https://router.project-osrm.org/route/v1/driving/{$from_office['lng']},{$from_office['lat']};{$to_office['lng']},{$to_office['lat']}?overview=full&geometries=polyline&steps=false";
 
 $ch = curl_init();
 curl_setopt($ch, CURLOPT_URL, $osrm_url);
