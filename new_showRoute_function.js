@@ -26,7 +26,12 @@ function showRoute() {
         method: 'POST',
         body: formData
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
     .then(data => {
         // Удаляем индикатор загрузки
         const loadingElement = document.getElementById('route-loading');
@@ -48,7 +53,7 @@ function showRoute() {
                 const bounds = L.latLngBounds(routeCoords);
                 map.fitBounds(bounds, {padding: [50, 50]});
 
-                alert(`Маршрут построен. Расстояние: ${data.distance.toFixed(2)} км, Время: ${data.duration} мин.`);
+                alert(`Маршрут построен по дорогам. Расстояние: ${data.distance.toFixed(2)} км, Время: ${data.duration} мин.`);
             } else {
                 // Если route_data отсутствует, используем прямую линию как fallback
                 const fromOffice = offices.find(o => o.id == selectedFromOffice);
@@ -70,6 +75,7 @@ function showRoute() {
                 }
             }
         } else {
+            console.error('Server error:', data.error);
             alert('Ошибка при получении маршрута: ' + (data.error || 'Неизвестная ошибка'));
         }
     })
@@ -81,6 +87,6 @@ function showRoute() {
         }
         
         console.error('Error getting route:', error);
-        alert('Ошибка при получении маршрута. Проверьте соединение с интернетом.');
+        alert('Ошибка при получении маршрута. Проверьте соединение с интернетом или попробуйте позже.');
     });
 }
