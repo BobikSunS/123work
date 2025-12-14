@@ -1,56 +1,44 @@
-```gitignore
-# Logs and temp files
-*.log
-*.tmp
-*.swp
+```
+# Database files
+*.sqlite
 
 # Environment
 .env
 .env.local
 *.env.*
 
-# Editors
-.vscode/
-.idea/
+# Logs
+*.log
 
 # Dependencies
 node_modules/
-vendor/
-
-# Build artifacts
+.venv/
+venv/
+__pycache__/
+.mypy_cache/
+.pytest_cache/
 dist/
 build/
-*.o
-*.obj
-*.out
+target/
+.gradle/
 
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-*.so
-.coverage
-htmlcov/
-.coverage.*
-.pytest_cache/
-.mypy_cache/
-
-# PHP
-*.php~
-*.php.bak
-*.phar
-
-# JavaScript/Node.js
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+# Editors
+.vscode/
+.idea/
 *.swp
+*.swo
+*.tmp
+
+# System
 .DS_Store
 Thumbs.db
 
-# Compression archives
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# Compressed files
 *.zip
 *.gz
 *.tar
