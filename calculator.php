@@ -66,10 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = "Вес превышает лимит оператора ($max_weight кг)!";
             } else {
                 // Используем универсальную функцию для расчета стоимости
-                $cod_amount = (float)($_POST['cod_amount'] ?? 0);
-                $packaging = isset($_POST['packaging']);
-                $fragile = isset($_POST['fragile']);
-                $result = calculateDeliveryCost($db, $carrier_id, $from, $to, $weight, $type, $insurance, $letter_count ?? 1, $packaging, $fragile, false, $cod_amount);
+                $result = calculateDeliveryCost($db, $carrier_id, $from, $to, $weight, $type, $insurance, $letter_count ?? 1);
                 $cost = $result['cost'];
                 $distance = $result['distance']; // обновляем расстояние, если оно изменилось
                 
@@ -258,30 +255,16 @@ function formatDeliveryTime($hours) {
 
                     <div class="col-md-4 d-flex align-items-end">
                         <div class="form-check me-3">
-                            <input type="checkbox" name="insurance" class="form-check-input" id="ins" <?=((isset($_POST['insurance']) || isset($_GET['insurance'])) ? 'checked' : '')?> onchange="calculateDynamicPrice()">
+                            <input type="checkbox" name="insurance" class="form-check-input" id="ins" <?=((isset($_POST['insurance']) || isset($_GET['insurance'])) ? 'checked' : '')?>>
                             <label class="form-check-label" for="ins">Страховка (+2%)</label>
                         </div>
                         <div class="form-check me-3">
-                            <input type="checkbox" name="packaging" class="form-check-input" id="pkg" onchange="calculateDynamicPrice()">
+                            <input type="checkbox" name="packaging" class="form-check-input" id="pkg">
                             <label class="form-check-label" for="pkg">Упаковка (+3 BYN)</label>
                         </div>
                         <div class="form-check">
-                            <input type="checkbox" name="fragile" class="form-check-input" id="frag" onchange="calculateDynamicPrice()">
+                            <input type="checkbox" name="fragile" class="form-check-input" id="frag">
                             <label class="form-check-label" for="frag">Хрупкое (+1%)</label>
-                        </div>
-                    </div>
-                    
-                    <div class="col-md-4">
-                        <label>Наложенный платеж (BYN)</label>
-                        <input type="number" step="0.01" name="cod_amount" id="cod_amount" class="form-control" value="<?=$_POST['cod_amount'] ?? '0'?>" min="0" onchange="calculateDynamicPrice()">
-                    </div>
-                </div>
-
-                <!-- Dynamic price display -->
-                <div class="row g-3 mt-3">
-                    <div class="col-md-12">
-                        <div class="card bg-light p-3 text-center">
-                            <h3>Итоговая стоимость: <span id="dynamic-price">0.00</span> BYN</h3>
                         </div>
                     </div>
                 </div>
@@ -1033,63 +1016,6 @@ document.addEventListener('DOMContentLoaded', function() {
         sessionStorage.removeItem('scrollPosition');
     }
 });
-
-// Dynamic price calculation function
-function calculateDynamicPrice() {
-    // Get selected carrier
-    const carrierId = document.getElementById('selected-carrier').value;
-    if (!carrierId) {
-        document.getElementById('dynamic-price').textContent = '0.00';
-        return;
-    }
-
-    // Get selected offices
-    const fromOffice = document.getElementById('selected-from').value;
-    const toOffice = document.getElementById('selected-to').value;
-    if (!fromOffice || !toOffice) {
-        document.getElementById('dynamic-price').textContent = '0.00';
-        return;
-    }
-
-    // Get package type
-    const packageType = document.querySelector('select[name="package_type"]').value;
-    
-    // Get weight or letter count
-    let weight = 1;
-    if (packageType === 'parcel') {
-        weight = parseFloat(document.querySelector('input[name="weight"]').value) || 1;
-    } else {
-        const letterCount = parseInt(document.querySelector('input[name="letter_count"]').value) || 1;
-        weight = letterCount * 0.02; // 0.02 kg per letter
-    }
-
-    // Get additional options
-    const insurance = document.querySelector('input[name="insurance"]').checked;
-    const packaging = document.querySelector('input[name="packaging"]').checked;
-    const fragile = document.querySelector('input[name="fragile"]').checked;
-    const codAmount = parseFloat(document.querySelector('input[name="cod_amount"]').value) || 0;
-
-    // Make AJAX request to calculate price
-    fetch('calculate_cost.php', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: `carrier_id=${carrierId}&from_office_id=${fromOffice}&to_office_id=${toOffice}&weight=${weight}&package_type=${packageType}&insurance=${insurance ? 1 : 0}&packaging=${packaging ? 1 : 0}&fragile=${fragile ? 1 : 0}&cod_amount=${codAmount}`
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            document.getElementById('dynamic-price').textContent = data.cost.toFixed(2);
-        } else {
-            document.getElementById('dynamic-price').textContent = 'Ошибка';
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        document.getElementById('dynamic-price').textContent = 'Ошибка';
-    });
-}
 </script>
 </body>
 </html>

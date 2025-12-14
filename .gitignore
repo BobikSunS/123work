@@ -1,1 +1,12 @@
-Nothing should be ignored since the modified files are all PHP source code files (.php) which are legitimate source files that should be tracked in version control. No build artifacts, dependencies, or temporary files were detected in the changes.
+```
+# Documentation and test files that were deleted
+ROAD_ROUTING_SETUP.md
+ROUTE_INSTRUCTIONS.md
+new_showRoute_function.js
+populate_routes.php
+script.js
+test_calculation.php
+test_db.php
+test_osrm_connection.php
+test_route.php
+```
