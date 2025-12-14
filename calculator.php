@@ -237,7 +237,7 @@ function formatDeliveryTime($hours) {
                 <div class="row g-3">
                     <div class="col-md-4">
                         <label>Тип отправления</label>
-                        <select name="package_type" class="form-select" onchange="toggleFields(this.value)" required>
+                        <select name="package_type" class="form-select" onchange="toggleFields(this.value); calculateCost()" required>
                             <option value="parcel" <?=((($_POST['package_type'] ?? $_GET['package_type'] ?? '') == 'parcel') ? 'selected' : '')?>>Посылка</option>
                             <option value="letter" <?=((($_POST['package_type'] ?? $_GET['package_type'] ?? '') == 'letter') ? 'selected' : '')?>>Письмо</option>
                         </select>
@@ -245,26 +245,43 @@ function formatDeliveryTime($hours) {
 
                     <div class="col-md-4" id="weight-div" style="<?=((($_POST['package_type'] ?? $_GET['package_type'] ?? '') == 'letter') ? 'display:none;' : '')?>">
                         <label>Вес (кг)</label>
-                        <input type="number" step="0.1" name="weight" class="form-control" value="<?=$_POST['weight'] ?? $_GET['weight'] ?? '1'?>" min="0.1" required>
+                        <input type="number" step="0.1" name="weight" class="form-control" value="<?=$_POST['weight'] ?? $_GET['weight'] ?? '1'?>" min="0.1" onchange="calculateCost()" required>
                     </div>
 
                     <div class="col-md-4" id="letter-div" style="<?=(($_POST['package_type'] ?? $_GET['package_type'] ?? '') == 'letter') ? '' : 'display:none;'?>">
                         <label>Количество писем</label>
-                        <input type="number" name="letter_count" class="form-control" value="<?=$_POST['letter_count'] ?? $_GET['letter_count'] ?? '1'?>" min="1" max="50">
+                        <input type="number" name="letter_count" class="form-control" value="<?=$_POST['letter_count'] ?? $_GET['letter_count'] ?? '1'?>" min="1" max="50" onchange="calculateCost()">
                     </div>
 
                     <div class="col-md-4 d-flex align-items-end">
                         <div class="form-check me-3">
-                            <input type="checkbox" name="insurance" class="form-check-input" id="ins" <?=((isset($_POST['insurance']) || isset($_GET['insurance'])) ? 'checked' : '')?>>
+                            <input type="checkbox" name="insurance" class="form-check-input" id="ins" onchange="calculateCost()" <?=((isset($_POST['insurance']) || isset($_GET['insurance'])) ? 'checked' : '')?>>
                             <label class="form-check-label" for="ins">Страховка (+2%)</label>
                         </div>
                         <div class="form-check me-3">
-                            <input type="checkbox" name="packaging" class="form-check-input" id="pkg">
+                            <input type="checkbox" name="packaging" class="form-check-input" id="pkg" onchange="calculateCost()">
                             <label class="form-check-label" for="pkg">Упаковка (+3 BYN)</label>
                         </div>
                         <div class="form-check">
-                            <input type="checkbox" name="fragile" class="form-check-input" id="frag">
+                            <input type="checkbox" name="fragile" class="form-check-input" id="frag" onchange="calculateCost()">
                             <label class="form-check-label" for="frag">Хрупкое (+1%)</label>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Dynamic price display section -->
+                <div class="row g-3 mt-3">
+                    <div class="col-md-12">
+                        <div class="card bg-light p-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h5 class="mb-0">Текущая стоимость доставки:</h5>
+                                    <p class="mb-0 text-muted">Измените параметры для обновления цены</p>
+                                </div>
+                                <div class="display-4 text-success fw-bold">
+                                    <span id="dynamic-cost">0.00</span> BYN
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -913,6 +930,68 @@ function redirectToOrderForm() {
     .catch(error => {
         console.error('Error calculating cost:', error);
         alert('Ошибка при расчете стоимости. Попробуйте снова.');
+    });
+}
+
+// Функция для динамического расчета стоимости
+function calculateCost() {
+    if (!selectedFromOffice || !selectedToOffice) {
+        document.getElementById('dynamic-cost').textContent = '0.00';
+        return;
+    }
+
+    // Собираем данные формы
+    const packageType = document.querySelector('select[name="package_type"]').value;
+    let weight;
+
+    if (packageType === 'letter') {
+        const letterCount = parseInt(document.querySelector('input[name="letter_count"]').value) || 1;
+        weight = letterCount * 0.02; // вес одного письма 0.02 кг
+    } else {
+        weight = parseFloat(document.querySelector('input[name="weight"]').value) || 1;
+    }
+
+    const insurance = document.querySelector('input[name="insurance"]').checked ? 1 : 0;
+    const packaging = document.querySelector('input[name="packaging"]').checked ? 1 : 0;
+    const fragile = document.querySelector('input[name="fragile"]').checked ? 1 : 0;
+    const carrierId = document.getElementById('selected-carrier').value;
+
+    // Вычисляем стоимость с помощью AJAX
+    const calculateData = {
+        carrier_id: carrierId,
+        from_office: selectedFromOffice,
+        to_office: selectedToOffice,
+        weight: weight,
+        package_type: packageType,
+        insurance: insurance ? 1 : 0,
+        packaging: packaging ? 1 : 0,
+        fragile: fragile ? 1 : 0,
+        letter_count: parseInt(document.querySelector('input[name="letter_count"]').value) || 1
+    };
+
+    fetch('calculate_cost.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: Object.keys(calculateData).map(key => `${encodeURIComponent(key)}=${encodeURIComponent(calculateData[key])}`).join('&')
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Обновляем отображение стоимости
+            document.getElementById('dynamic-cost').textContent = data.cost.toFixed(2);
+            
+            // Обновляем скрытое поле с рассчитанной стоимостью
+            document.getElementById('calculated-cost').value = data.cost;
+        } else {
+            console.error('Error calculating cost:', data.error);
+            document.getElementById('dynamic-cost').textContent = 'Ошибка';
+        }
+    })
+    .catch(error => {
+        console.error('Error calculating cost:', error);
+        document.getElementById('dynamic-cost').textContent = 'Ошибка';
     });
 }
 

@@ -17,6 +17,7 @@ $insurance = isset($_POST['insurance']) && $_POST['insurance'] == 1;
 $packaging = isset($_POST['packaging']) && $_POST['packaging'] == 1;
 $fragile = isset($_POST['fragile']) && $_POST['fragile'] == 1;
 $letter_count = (int)($_POST['letter_count'] ?? 1);
+$cash_on_delivery_amount = floatval($_POST['cash_on_delivery_amount'] ?? 0);
 
 // Validate required fields
 if ($carrier_id <= 0 || $from_office <= 0 || $to_office <= 0) {
@@ -25,7 +26,7 @@ if ($carrier_id <= 0 || $from_office <= 0 || $to_office <= 0) {
 }
 
 try {
-    $result = calculateDeliveryCost($db, $carrier_id, $from_office, $to_office, $weight, $package_type, $insurance, $letter_count, $packaging, $fragile);
+    $result = calculateDeliveryCost($db, $carrier_id, $from_office, $to_office, $weight, $package_type, $insurance, $letter_count, $packaging, $fragile, false, $cash_on_delivery_amount);
     
     echo json_encode([
         'success' => true,

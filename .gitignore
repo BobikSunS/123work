@@ -1,12 +1,4 @@
 ```
-# Documentation and test files that were deleted
-ROAD_ROUTING_SETUP.md
-ROUTE_INSTRUCTIONS.md
-new_showRoute_function.js
-populate_routes.php
-script.js
-test_calculation.php
-test_db.php
-test_osrm_connection.php
-test_route.php
+# Backup files
+*.bak
 ```
