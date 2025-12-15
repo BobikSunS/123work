@@ -461,6 +461,8 @@ CREATE TABLE `orders` (
   `pickup_address` text DEFAULT NULL,
   `delivery_city` varchar(100) DEFAULT NULL,
   `delivery_address` text DEFAULT NULL,
+  `recipient_name` varchar(255) DEFAULT NULL,
+  `recipient_address` text DEFAULT NULL,
   `desired_date` date DEFAULT NULL,
   `insurance` tinyint(1) DEFAULT 0,
   `packaging` tinyint(1) DEFAULT 0,

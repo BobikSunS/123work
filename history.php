@@ -152,6 +152,16 @@ $orders->execute([$user['id']]);
                                         <div class="detail-row"><strong>Адрес доставки:</strong> <?= htmlspecialchars($o['delivery_city']) ?>, <?= htmlspecialchars($o['delivery_address']) ?></div>
                                     </div>
                                     <?php endif; ?>
+                                    <?php if(isset($o['recipient_name']) && $o['recipient_name']): ?>
+                                    <div class="col-md-6">
+                                        <div class="detail-row"><strong>Получатель:</strong> <?= htmlspecialchars($o['recipient_name']) ?></div>
+                                    </div>
+                                    <?php endif; ?>
+                                    <?php if(isset($o['recipient_address']) && $o['recipient_address']): ?>
+                                    <div class="col-md-6">
+                                        <div class="detail-row"><strong>Адрес получателя:</strong> <?= htmlspecialchars($o['recipient_address']) ?></div>
+                                    </div>
+                                    <?php endif; ?>
                                     <?php if(isset($o['insurance']) && $o['insurance'] || isset($o['packaging']) && $o['packaging'] || isset($o['fragile']) && $o['fragile']): ?>
                                     <div class="col-md-12">
                                         <div class="detail-row">
