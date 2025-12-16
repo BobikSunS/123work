@@ -214,6 +214,12 @@ if (in_array('tracking_status', $existing_columns)) {
         LIMIT 20
     ")->fetchAll();
 }
+// Get statistics for orders by status
+$order_stats = $db->query("
+    SELECT tracking_status, COUNT(*) as count 
+    FROM orders 
+    GROUP BY tracking_status
+")->fetchAll(PDO::FETCH_ASSOC);
 
 $carriers = $db->query("SELECT * FROM carriers")->fetchAll();
 $offices = $db->query("SELECT o.*, c.name as carrier_name FROM offices o LEFT JOIN carriers c ON o.carrier_id = c.id ORDER BY c.name, o.city")->fetchAll();
@@ -397,8 +403,7 @@ $status_options = [
                                                 <td><input name="speed_kmh" value="<?= $c['speed_kmh'] ?>" class="form-control form-control-sm"></td>
                                                 <td>
                                                     <div class="d-flex flex-wrap gap-1">
-                                                        <button class="btn btn-sm btn-success me-1" title="Сохранить изменения"><i class="fas fa-save"></i></button>
-                                                        <a href="routes.php?carrier=<?= $c['id'] ?>" class="btn btn-sm btn-info me-1" title="Маршруты"><i class="fas fa-route"></i></a>
+                                                        <button type="submit" class="btn btn-sm btn-success me-1" title="Сохранить изменения"><i class="fas fa-save"></i></button>
                                                         <form method="POST" class="d-inline" onsubmit="return confirm('Удалить оператора <?= addslashes(htmlspecialchars($c['name'])) ?>?');">
                                                             <input type="hidden" name="action" value="delete_carrier">
                                                             <input type="hidden" name="id" value="<?= $c['id'] ?>">
@@ -562,6 +567,27 @@ $status_options = [
                     <!-- Search input for orders by track number -->
                     <div class="mb-3">
                         <input type="text" id="order-track-search" class="form-control" placeholder="Поиск по трек-номеру заказа...">
+                    </div>
+                    
+                    <!-- Statistics by status -->
+                    <div class="mb-3">
+                        <div class="row">
+                            <?php foreach($status_options as $status_key => $status_name): 
+                                $status_count = 0;
+                                foreach($order_stats as $stat) {
+                                    if($stat['tracking_status'] == $status_key) {
+                                        $status_count = $stat['count'];
+                                        break;
+                                    }
+                                }
+                            ?>
+                            <div class="col-auto me-3 mb-2">
+                                <span class="badge bg-info p-2">
+                                    <?= $status_name ?>: <strong><?= $status_count ?></strong>
+                                </span>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
                     </div>
                     
                     <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
@@ -731,7 +757,7 @@ $status_options = [
                                                     </span>
                                                 </td>
                                                 <td>
-                                                    <div class="btn-group btn-group-sm">
+                                                    <div class="d-flex flex-wrap gap-1">
                                                         <button class="btn btn-primary edit-user-btn" 
                                                                 data-user-id="<?= $u['id'] ?>" 
                                                                 data-login="<?= htmlspecialchars($u['login']) ?>" 
