@@ -1,24 +1,10 @@
 ```
-# Database and environment files
-*.sql
-.env
-.env.local
-.env.*
-
-# Logs and temporary files
-*.log
-*.tmp
-*.swp
-
-# Editors
-.vscode/
-.idea/
-
 # Compiled and build artifacts
 *.pyc
 __pycache__/
 *.o
 *.obj
+*.class
 *.exe
 *.dll
 *.so
@@ -26,22 +12,41 @@ __pycache__/
 *.out
 
 # Dependencies
-.venv/
-venv/
 node_modules/
-.mypy_cache/
-.pytest_cache/
+venv/
+.venv/
+.env
+.env.local
+.env.*
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+*.swo
+
+# Editors
+.vscode/
+.idea/
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# Build directories
 dist/
 build/
 target/
 .gradle/
 
+# Python cache
+.mypy_cache/
+.pytest_cache/
+
 # System files
 .DS_Store
 Thumbs.db
-coverage/
-htmlcov/
-.coverage
 
 # Compressed files
 *.zip
