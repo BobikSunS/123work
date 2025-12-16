@@ -105,16 +105,10 @@ if (!$is_special_status) {
     <div class="container-fluid">
         <a class="navbar-brand">Отслеживание посылки</a>
         <div>
-            <?php if($_SESSION['user']['role'] !== 'courier'): ?>
             <a href="calculator.php" class="btn btn-light me-2">Калькулятор</a>
             <a href="order_form.php" class="btn btn-success me-2">Оформить заказ</a>
             <a href="history.php" class="btn btn-warning me-2">История</a>
-            <?php else: ?>
-            <a href="courier_profile.php" class="btn btn-info me-2">Профиль курьера</a>
-            <a href="track.php" class="btn btn-primary me-2">Отслеживание</a>
-            <?php endif; ?>
             <?php if($_SESSION['user']['role']==='admin'): ?><a href="admin/index.php" class="btn btn-danger me-2">Админка</a><?php endif; ?>
-            <?php if($_SESSION['user']['role']==='courier'): ?><a href="courier_profile.php" class="btn btn-info me-2">Профиль курьера</a><?php endif; ?>
             <a href="logout.php" class="btn btn-outline-light">Выйти</a>
         </div>
     </div>
