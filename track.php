@@ -1,5 +1,4 @@
-<?php 
-require 'db.php';
+<?php require 'db.php';
 if (!isset($_SESSION['user'])) header('Location: index.php');
 
 $track = $_GET['track'] ?? '';
@@ -8,40 +7,13 @@ if (!$track) {
     die('Трек-номер не указан');
 }
 
-$order = $db->prepare("SELECT o.*, c.name as carrier_name, u.name as user_name FROM orders o LEFT JOIN carriers c ON o.carrier_id=c.id LEFT JOIN users u ON o.user_id=u.id WHERE o.track_number=?");
+$order = $db->prepare("SELECT o.*, c.name as carrier_name FROM orders o LEFT JOIN carriers c ON o.carrier_id=c.id WHERE o.track_number=?");
 $order->execute([$track]);
 $order = $order->fetch();
 
 if (!$order) {
     die('Заказ не найден');
 }
-
-// Handle courier assignment from track.php
-if (isset($_POST['action']) && $_POST['action'] === 'assign_courier_from_track') {
-    $courier_id = (int)($_POST['courier_id'] ?? 0);
-    $order_id = (int)($_POST['order_id'] ?? 0);
-    
-    if ($courier_id > 0 && $order_id > 0) {
-        $stmt = $db->prepare("UPDATE orders SET courier_id=? WHERE id=?");
-        $stmt->execute([$courier_id, $order_id]);
-        
-        // Update status to "out_for_delivery" if it was in a different status
-        $stmt = $db->prepare("UPDATE orders SET tracking_status='out_for_delivery' WHERE id=? AND tracking_status NOT IN ('delivered', 'cancelled', 'returned')");
-        $stmt->execute([$order_id]);
-        
-        // Add to status history
-        $stmt = $db->prepare("INSERT INTO tracking_status_history (order_id, status, description, created_at) VALUES (?, 'out_for_delivery', 'Заказ назначен курьеру', NOW())");
-        $stmt->execute([$order_id]);
-        
-        // Refresh the order data
-        $order = $db->prepare("SELECT o.*, c.name as carrier_name, u.name as user_name FROM orders o LEFT JOIN carriers c ON o.carrier_id=c.id LEFT JOIN users u ON o.user_id=u.id WHERE o.track_number=?");
-        $order->execute([$track]);
-        $order = $order->fetch();
-    }
-}
-
-// Get available couriers
-$couriers = $db->query("SELECT id, login, name FROM users WHERE role='courier'")->fetchAll();
 
 // Define order status stages for timeline (normal delivery flow)
 $status_stages = [
@@ -234,63 +206,6 @@ if (!$is_special_status) {
                         </p>
                     </div>
                     <?php endif; ?>
-                </div>
-            </div>
-            <?php endif; ?>
-            
-            <!-- Additional order information -->
-            <div class="mt-4">
-                <h4>Дополнительная информация</h4>
-                <div class="row">
-                    <?php if(isset($order['expected_delivery_date']) && $order['expected_delivery_date']): ?>
-                    <div class="col-md-6">
-                        <p><strong>Ожидаемая дата доставки:</strong> <?= date('d.m.Y', strtotime($order['expected_delivery_date'])) ?></p>
-                    </div>
-                    <?php endif; ?>
-                    <?php if(isset($order['user_name']) && $order['user_name']): ?>
-                    <div class="col-md-6">
-                        <p><strong>Клиент:</strong> <?= htmlspecialchars($order['user_name']) ?></p>
-                    </div>
-                    <?php endif; ?>
-                </div>
-            </div>
-            
-            <!-- Courier assignment section for admin/courier users -->
-            <?php if($_SESSION['user']['role'] === 'admin' || $_SESSION['user']['role'] === 'courier'): ?>
-            <div class="mt-4">
-                <h4>Назначение курьера</h4>
-                <div class="row">
-                    <div class="col-md-12">
-                        <form method="POST" class="d-flex align-items-center">
-                            <input type="hidden" name="action" value="assign_courier_from_track">
-                            <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
-                            <div class="me-2" style="flex: 1; max-width: 300px;">
-                                <select name="courier_id" class="form-select" required>
-                                    <option value="">Выберите курьера</option>
-                                    <?php foreach($couriers as $courier): ?>
-                                    <option value="<?= $courier['id'] ?>" <?= ($order['courier_id'] == $courier['id']) ? 'selected' : '' ?>>
-                                        <?= htmlspecialchars($courier['name'] ?: $courier['login']) ?>
-                                    </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                            <button type="submit" class="btn btn-warning">Назначить курьера</button>
-                        </form>
-                        <?php if($order['courier_id']): ?>
-                        <?php 
-                        $assigned_courier = null;
-                        if ($order['courier_id']) {
-                            $courier_query = $db->prepare("SELECT name, login FROM users WHERE id = ?");
-                            $courier_query->execute([$order['courier_id']]);
-                            $assigned_courier = $courier_query->fetch();
-                        }
-                        ?>
-                        <div class="mt-2">
-                            <strong>Назначенный курьер:</strong> 
-                            <?= $assigned_courier ? htmlspecialchars($assigned_courier['name'] ?: $assigned_courier['login']) : '<span class="text-muted">Не назначен</span>' ?>
-                        </div>
-                        <?php endif; ?>
-                    </div>
                 </div>
             </div>
             <?php endif; ?>
