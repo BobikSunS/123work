@@ -85,11 +85,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Вставляем заказ в базу данных с основными полями
             // Статус заказа будет pending до подтверждения оплаты
-            $stmt = $db->prepare("INSERT INTO orders (user_id, carrier_id, from_office, to_office, weight, cost, track_number, tracking_status, created_at, full_name, home_address, recipient_name, recipient_address, desired_date, insurance, packaging, fragile, payment_method, comment) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt = $db->prepare("INSERT INTO orders (user_id, carrier_id, from_office, to_office, weight, cost, track_number, tracking_status, created_at, full_name, home_address, recipient_name, recipient_address, desired_date, insurance, packaging, fragile, payment_method, cash_on_delivery, cod_amount, comment) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             $stmt->execute([
                 $user['id'], $carrier_id, $from_office, $to_office, $weight, $cost, $track,
                 $full_name, $home_address, $recipient_name, $recipient_address, $desired_date, 
-                $insurance, $packaging, $fragile, $payment_method, $comment
+                $insurance, $packaging, $fragile, $payment_method, $cash_on_delivery, $cod_amount, $comment
             ]);
             
             // Получаем ID созданного заказа

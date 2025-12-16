@@ -149,7 +149,7 @@ if ($order['courier_id']) {
     <div class="order-details">
         <p><strong>Номер накладной:</strong> <?= htmlspecialchars($order['track_number']) ?></p>
         <p><strong>Дата создания:</strong> <?= date('d.m.Y H:i', strtotime($order['created_at'])) ?></p>
-        <?php if ($order['delivery_date']): ?>
+        <?php if (isset($order['delivery_date']) && $order['delivery_date']): ?>
         <p><strong>Дата доставки:</strong> <?= date('d.m.Y', strtotime($order['delivery_date'])) ?></p>
         <?php endif; ?>
         <p><strong>Статус:</strong> 
@@ -211,7 +211,7 @@ if ($order['courier_id']) {
         </div>
         <div class="detail-row">
             <span>Оплата при получении:</span>
-            <span><?= $order['cash_on_delivery'] ? 'Да (' . number_format($order['cod_amount'], 2) . ' BYN)' : 'Нет' ?></span>
+            <span><?= (isset($order['cash_on_delivery']) && $order['cash_on_delivery']) ? 'Да (' . number_format($order['cod_amount'] ?? 0, 2) . ' BYN)' : 'Нет' ?></span>
         </div>
     </div>
     
