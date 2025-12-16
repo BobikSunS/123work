@@ -290,7 +290,7 @@ $status_options = [
                 <!-- Редактирование тарифов -->
                 <div class="col-md-12 mb-4">
                     <div class="card shadow-lg">
-                        <div class="card-header bg-gradient text-white" style="background: linear-gradient(135deg, #3498db, #2c3e50);">
+                        <div class="card-header bg-gradient text-blue" style="background: linear-gradient(135deg, #3498db, #2c3e50);">
                             <h4 class="mb-0"><i class="fas fa-cogs me-2"></i>Тарифы операторов</h4>
                         </div>
                         <div class="card-body">
