@@ -328,7 +328,7 @@ $status_options = [
 <div class="container mt-4">
 
     <!-- Статистика -->
-    <div class="row mb-5 text-white">
+    <div class="row mb-5 text-gray">
         <div class="col-md-3">
             <div class="stat-card">
                 <h3><?= $total_orders ?></h3>
@@ -418,7 +418,7 @@ $status_options = [
                 <div class="col-md-6 mb-4">
                     <!-- Добавление нового оператора -->
                     <div class="card">
-                        <div class="card-header bg-info text-white">
+                        <div class="card-header bg-gray">
                             <h4>Добавить нового оператора</h4>
                         </div>
                         <div class="card-body">
@@ -465,7 +465,7 @@ $status_options = [
                 <div class="col-md-6 mb-4">
                     <!-- Добавление нового отделения -->
                     <div class="card">
-                        <div class="card-header bg-success text-white">
+                        <div class="card-header bg-success text-gray">
                             <h4>Добавить новое отделение</h4>
                         </div>
                         <div class="card-body">
@@ -505,7 +505,7 @@ $status_options = [
                 <!-- Список отделений с возможностью удаления -->
                 <div class="col-md-12 mb-4">
                     <div class="card">
-                        <div class="card-header bg-secondary text-white">
+                        <div class="card-header bg-secondary text-gray">
                             <h4>Список отделений</h4>
                         </div>
                         <div class="card-body">
@@ -618,7 +618,7 @@ $status_options = [
             
             <!-- Recent activity -->
             <div class="card">
-                <div class="card-header bg-success text-white">
+                <div class="card-header bg-success text-gray">
                     <h5>Недавние заказы</h5>
                 </div>
                 <div class="card-body">
@@ -640,7 +640,7 @@ $status_options = [
 
         <!-- User Management Section -->
         <div class="card mb-4">
-            <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+            <div class="card-header bg-secondary text-gray d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Управление пользователями</h5>
                 <button class="btn btn-light btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#userManagement">
                     Развернуть/Свернуть
@@ -651,7 +651,7 @@ $status_options = [
                     <div class="col-md-6">
                         <!-- Add User Form -->
                         <div class="card mb-4">
-                            <div class="card-header bg-info text-white">
+                            <div class="card-header bg-info text-gray">
                                 <h5 class="mb-0">Добавить нового пользователя</h5>
                             </div>
                             <div class="card-body">
@@ -694,7 +694,7 @@ $status_options = [
                     <div class="col-md-6">
                         <!-- User List with Search -->
                         <div class="card">
-                            <div class="card-header bg-success text-white">
+                            <div class="card-header bg-success text-gray">
                                 <h5 class="mb-0">Список пользователей</h5>
                             </div>
                             <div class="card-body">
@@ -768,7 +768,7 @@ $status_options = [
     <div class="row">
         <div class="col-md-6">
             <div class="card">
-                <div class="card-header bg-info text-white">
+                <div class="card-header bg-info text-gray">
                     <h5>Заказы за 7 дней</h5>
                 </div>
                 <div class="card-body">
