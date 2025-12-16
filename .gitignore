@@ -1,42 +1,37 @@
 ```
-# Dependencies
-vendor/
+# Database and SQL files
+*.sql
 
-# Logs and temp files
+# PHP files and build artifacts
+*.php~
+*.php.bak
 *.log
-*.tmp
 
-# Environment
+# Environment files
 .env
 .env.local
 *.env.*
 
-# Editor/IDE
+# Cache and temporary files
+*.tmp
+*.bak
+~*
+
+# Web-related
+*.min.js
+*.min.css
+*.map
+
+# Logs
+*.log
+
+# IDE and editor files
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# OS
+# OS generated files
 .DS_Store
 Thumbs.db
-
-# PHP specific
-*.php~
-phpunit.xml.dist
-composer.lock
-
-# Database
-*.sql
-*.db
-*.sqlite
-
-# Coverage
-.coverage
-coverage/
-htmlcov/
-
-# Tests
-.phpunit
-test_results/
 ```
