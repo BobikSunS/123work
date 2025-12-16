@@ -91,11 +91,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
             <button type="submit" class="btn btn-primary btn-lg w-100">ВОЙТИ</button>
         </form>
-        <div class="mt-4">
-            <small class="text-muted d-block mb-2">Демо-данные:</small>
-            <small class="text-muted d-block">Логин: admin, Пароль: admin</small>
-            <small class="text-muted d-block">или создайте свой аккаунт</small>
-        </div>
         <div class="mt-3">
             <a href="index.php" class="btn btn-outline-secondary btn-sm">На главную</a>
             <a href="register.php" class="btn btn-outline-primary btn-sm ms-2">Регистрация</a>
