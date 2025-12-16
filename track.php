@@ -122,7 +122,12 @@ if (!$is_special_status) {
             <!-- Status progress bar -->
             <div class="mt-4">
                 <h5>Прогресс доставки:</h5>
-                <?php if ($is_special_status): ?>
+                <?php if ($current_status === 'out_for_delivery'): ?>
+                    <div class="alert alert-info">
+                        <strong>Ожидание подтверждения курьера:</strong> 
+                        Заказ находится у курьера. Ожидается подтверждение доставки или получения в сортировочном центре.
+                    </div>
+                <?php elseif ($is_special_status): ?>
                     <div class="alert alert-warning">
                         <strong><?= htmlspecialchars($special_status[$current_status]['name']) ?>:</strong> 
                         <?= htmlspecialchars($special_status[$current_status]['description']) ?>

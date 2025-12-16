@@ -213,6 +213,72 @@ if (in_array('tracking_status', $existing_columns)) {
 $carriers = $db->query("SELECT * FROM carriers")->fetchAll();
 $offices = $db->query("SELECT o.*, c.name as carrier_name FROM offices o LEFT JOIN carriers c ON o.carrier_id = c.id ORDER BY c.name, o.city")->fetchAll();
 
+// Обработка добавления/редактирования пользователей
+if (isset($_POST['action']) && in_array($_POST['action'], ['add_user', 'edit_user'])) {
+    $login = trim($_POST['login'] ?? '');
+    $name = trim($_POST['name'] ?? '');
+    $email = trim($_POST['email'] ?? '');
+    $role = $_POST['role'] ?? 'user';
+    $phone = trim($_POST['phone'] ?? '');
+    
+    if ($_POST['action'] === 'add_user') {
+        $password = $_POST['password'] ?? '';
+        if (strlen($password) < 3) {
+            $error = "Пароль слишком короткий";
+        } elseif ($db->query("SELECT id FROM users WHERE login = '$login'")->fetchColumn()) {
+            $error = "Логин уже занят";
+        } else {
+            $stmt = $db->prepare("INSERT INTO users (login, password, name, email, role, phone) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$login, $password, $name, $email, $role, $phone]);
+        }
+    } elseif ($_POST['action'] === 'edit_user') {
+        $user_id = (int)($_POST['user_id'] ?? 0);
+        $password = trim($_POST['password'] ?? '');
+        
+        if ($password) {
+            // Update with new password
+            $stmt = $db->prepare("UPDATE users SET login=?, password=?, name=?, email=?, role=?, phone=? WHERE id=?");
+            $stmt->execute([$login, $password, $name, $email, $role, $phone, $user_id]);
+        } else {
+            // Update without changing password
+            $stmt = $db->prepare("UPDATE users SET login=?, name=?, email=?, role=?, phone=? WHERE id=?");
+            $stmt->execute([$login, $name, $email, $role, $phone, $user_id]);
+        }
+    }
+}
+
+// Обработка удаления пользователя
+if (isset($_POST['action']) && $_POST['action'] === 'delete_user') {
+    $user_id = (int)($_POST['user_id'] ?? 0);
+    if ($user_id > 1) { // Не удаляем администратора по умолчанию
+        $stmt = $db->prepare("DELETE FROM users WHERE id = ?");
+        $stmt->execute([$user_id]);
+    }
+}
+
+// Обработка назначения курьера на заказ
+if (isset($_POST['action']) && $_POST['action'] === 'assign_courier') {
+    $order_id = (int)($_POST['order_id'] ?? 0);
+    $courier_id = (int)($_POST['courier_id'] ?? 0);
+    
+    $stmt = $db->prepare("UPDATE orders SET courier_id=? WHERE id=?");
+    $stmt->execute([$courier_id, $order_id]);
+    
+    // Обновляем статус заказа на "у курьера" если он был в другом статусе
+    $stmt = $db->prepare("UPDATE orders SET tracking_status='out_for_delivery' WHERE id=? AND tracking_status NOT IN ('delivered', 'cancelled', 'returned')");
+    $stmt->execute([$order_id]);
+    
+    // Добавляем в историю статусов
+    $stmt = $db->prepare("INSERT INTO tracking_status_history (order_id, status, description, created_at) VALUES (?, 'out_for_delivery', 'Заказ назначен курьеру', NOW())");
+    $stmt->execute([$order_id]);
+}
+
+// Получение списка курьеров для назначения
+$couriers = $db->query("SELECT id, login, name FROM users WHERE role='courier'")->fetchAll();
+
+// Получение списка пользователей для управления
+$users = $db->query("SELECT * FROM users ORDER BY role, name")->fetchAll();
+
 // Define status options
 $status_options = [
     'created' => 'Создан',
@@ -516,14 +582,21 @@ $status_options = [
                                             <form method="POST" class="d-inline status-form" onsubmit="updateStatus(event, <?= $order['id'] ?>)">
                                                 <input type="hidden" name="action" value="update_status">
                                                 <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
-                                                <select name="new_status" class="form-select form-select-sm d-inline w-auto me-1 status-select" data-order-id="<?= $order['id'] ?>">
+                                                <select name="new_status" class="form-select form-select-sm d-inline w-auto me-1 status-select" data-order-id="<?= $order['id'] ?>" 
+                                                    <?php if ($order['tracking_status'] === 'out_for_delivery' && $order['courier_id']): ?>disabled title="Ожидание подтверждения курьером"<?php endif; ?>>
                                                     <?php foreach($status_options as $status_key => $status_name): ?>
-                                                    <option value="<?= $status_key ?>" <?= (($order['tracking_status'] ?? 'created') == $status_key) ? 'selected' : '' ?>>
+                                                    <option value="<?= $status_key ?>" <?= (($order['tracking_status'] ?? 'created') == $status_key) ? 'selected' : '' ?>
+                                                        <?php if ($order['tracking_status'] === 'out_for_delivery' && $order['courier_id'] && !in_array($status_key, ['out_for_delivery', 'sort_center', 'delivered'])): ?>disabled<?php endif; ?>>
                                                         <?= $status_name ?>
                                                     </option>
                                                     <?php endforeach; ?>
                                                 </select>
-                                                <button class="btn btn-sm btn-warning">Изменить</button>
+                                                <?php if ($order['tracking_status'] === 'out_for_delivery' && $order['courier_id']): ?>
+                                                    <button class="btn btn-sm btn-warning" disabled title="Ожидание подтверждения курьером">Изменить</button>
+                                                    <small class="text-warning">Ожидание курьера</small>
+                                                <?php else: ?>
+                                                    <button class="btn btn-sm btn-warning">Изменить</button>
+                                                <?php endif; ?>
                                             </form>
                                             <a href="../track.php?track=<?= urlencode($order['track_number']) ?>" class="btn btn-sm btn-primary">Перейти</a>
                                         </div>
@@ -560,6 +633,204 @@ $status_options = [
             </div>
         </div>
 
+        <!-- User Management Section -->
+        <div class="card mb-4">
+            <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Управление пользователями</h5>
+                <button class="btn btn-light btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#userManagement">
+                    Развернуть/Свернуть
+                </button>
+            </div>
+            <div class="card-body collapse" id="userManagement">
+                <div class="row">
+                    <div class="col-md-6">
+                        <!-- Add User Form -->
+                        <div class="card mb-4">
+                            <div class="card-header bg-info text-white">
+                                <h5 class="mb-0">Добавить нового пользователя</h5>
+                            </div>
+                            <div class="card-body">
+                                <form method="POST">
+                                    <input type="hidden" name="action" value="add_user">
+                                    <div class="mb-3">
+                                        <label class="form-label">Логин</label>
+                                        <input type="text" name="login" class="form-control" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Пароль</label>
+                                        <input type="password" name="password" class="form-control" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Имя</label>
+                                        <input type="text" name="name" class="form-control">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Email</label>
+                                        <input type="email" name="email" class="form-control">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Телефон</label>
+                                        <input type="text" name="phone" class="form-control">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Роль</label>
+                                        <select name="role" class="form-select" required>
+                                            <option value="user">Пользователь</option>
+                                            <option value="courier">Курьер</option>
+                                            <option value="admin">Администратор</option>
+                                        </select>
+                                    </div>
+                                    <button type="submit" class="btn btn-info w-100">Добавить пользователя</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <!-- User List with Search -->
+                        <div class="card">
+                            <div class="card-header bg-success text-white">
+                                <h5 class="mb-0">Список пользователей</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <input type="text" id="user-search" class="form-control" placeholder="Поиск по логину или имени...">
+                                </div>
+                                
+                                <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                                    <table class="table table-hover">
+                                        <thead class="table-dark sticky-top">
+                                            <tr>
+                                                <th>Логин</th>
+                                                <th>Имя</th>
+                                                <th>Роль</th>
+                                                <th>Действия</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="user-table-body">
+                                            <?php foreach($users as $u): ?>
+                                            <tr>
+                                                <td><strong><?= htmlspecialchars($u['login']) ?></strong></td>
+                                                <td><?= htmlspecialchars($u['name'] ?? 'Н/Д') ?></td>
+                                                <td>
+                                                    <span class="badge 
+                                                        <?php 
+                                                        switch($u['role']) {
+                                                            case 'admin': echo 'bg-danger'; break;
+                                                            case 'courier': echo 'bg-warning text-dark'; break;
+                                                            default: echo 'bg-primary'; break;
+                                                        }
+                                                        ?>">
+                                                        <?= $u['role'] === 'admin' ? 'Админ' : ($u['role'] === 'courier' ? 'Курьер' : 'Пользователь') ?>
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <div class="btn-group btn-group-sm">
+                                                        <button class="btn btn-primary edit-user-btn" 
+                                                                data-user-id="<?= $u['id'] ?>" 
+                                                                data-login="<?= htmlspecialchars($u['login']) ?>" 
+                                                                data-name="<?= htmlspecialchars($u['name'] ?? '') ?>" 
+                                                                data-email="<?= htmlspecialchars($u['email'] ?? '') ?>" 
+                                                                data-phone="<?= htmlspecialchars($u['phone'] ?? '') ?>" 
+                                                                data-role="<?= $u['role'] ?>"
+                                                                data-bs-toggle="modal" 
+                                                                data-bs-target="#editUserModal">
+                                                            <i class="fas fa-edit"></i>
+                                                        </button>
+                                                        <?php if($u['id'] > 1): // Не удаляем администратора по умолчанию ?>
+                                                        <form method="POST" class="d-inline" onsubmit="return confirm('Удалить пользователя <?= addslashes(htmlspecialchars($u['login'])) ?>?');">
+                                                            <input type="hidden" name="action" value="delete_user">
+                                                            <input type="hidden" name="user_id" value="<?= $u['id'] ?>">
+                                                            <button type="submit" class="btn btn-danger"><i class="fas fa-trash"></i></button>
+                                                        </form>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Courier Assignment Section -->
+        <div class="card mb-4">
+            <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Назначение курьеров</h5>
+                <button class="btn btn-light btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#courierAssignment">
+                    Развернуть/Свернуть
+                </button>
+            </div>
+            <div class="card-body collapse" id="courierAssignment">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Трек-номер</th>
+                                <th>Клиент</th>
+                                <th>Статус</th>
+                                <th>Назначенный курьер</th>
+                                <th>Назначить курьера</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach(array_slice($recent_orders, 0, 15) as $order): ?>
+                            <tr>
+                                <td><strong><?= htmlspecialchars($order['track_number']) ?></strong></td>
+                                <td><?= htmlspecialchars($order['user_name'] ?? 'Н/Д') ?></td>
+                                <td>
+                                    <span class="badge 
+                                        <?php 
+                                        switch($order['tracking_status']) {
+                                            case 'delivered': echo 'bg-success'; break;
+                                            case 'out_for_delivery': echo 'bg-warning text-dark'; break;
+                                            case 'sort_center': echo 'bg-info'; break;
+                                            case 'in_transit': echo 'bg-primary'; break;
+                                            case 'delayed': echo 'bg-danger'; break;
+                                            default: echo 'bg-secondary'; break;
+                                        }
+                                        ?>">
+                                        <?= htmlspecialchars($status_options[$order['tracking_status'] ?? 'created'] ?? 'Обработан') ?>
+                                    </span>
+                                </td>
+                                <td>
+                                    <?php
+                                    $assigned_courier = null;
+                                    if ($order['courier_id']) {
+                                        $courier_query = $db->prepare("SELECT name, login FROM users WHERE id = ?");
+                                        $courier_query->execute([$order['courier_id']]);
+                                        $assigned_courier = $courier_query->fetch();
+                                    }
+                                    ?>
+                                    <?= $assigned_courier ? htmlspecialchars($assigned_courier['name'] ?: $assigned_courier['login']) : '<span class="text-muted">Не назначен</span>' ?>
+                                </td>
+                                <td>
+                                    <form method="POST" class="d-flex align-items-center">
+                                        <input type="hidden" name="action" value="assign_courier">
+                                        <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
+                                        <select name="courier_id" class="form-select form-select-sm me-2" style="width: auto;">
+                                            <option value="">Выберите курьера</option>
+                                            <?php foreach($couriers as $courier): ?>
+                                            <option value="<?= $courier['id'] ?>" <?= ($order['courier_id'] == $courier['id']) ? 'selected' : '' ?>>
+                                                <?= htmlspecialchars($courier['name'] ?: $courier['login']) ?>
+                                            </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                        <button type="submit" class="btn btn-sm btn-warning">Назначить</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
 
     <!-- Графики -->
     <div class="row">
@@ -585,9 +856,100 @@ $status_options = [
         </div>
     </div>
 
+<!-- Edit User Modal -->
+<div class="modal fade" id="editUserModal" tabindex="-1" aria-labelledby="editUserModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editUserModalLabel">Редактировать пользователя</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST">
+                <div class="modal-body">
+                    <input type="hidden" name="action" value="edit_user">
+                    <input type="hidden" name="user_id" id="edit_user_id">
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Логин</label>
+                        <input type="text" name="login" id="edit_login" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Пароль (оставьте пустым, чтобы не менять)</label>
+                        <input type="password" name="password" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Имя</label>
+                        <input type="text" name="name" id="edit_name" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" name="email" id="edit_email" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Телефон</label>
+                        <input type="text" name="phone" id="edit_phone" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Роль</label>
+                        <select name="role" id="edit_role" class="form-select" required>
+                            <option value="user">Пользователь</option>
+                            <option value="courier">Курьер</option>
+                            <option value="admin">Администратор</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Сохранить изменения</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 
+<!-- Search functionality for users -->
 <script>
+// Add event listeners for user edit buttons
+document.querySelectorAll('.edit-user-btn').forEach(button => {
+    button.addEventListener('click', function() {
+        const userId = this.getAttribute('data-user-id');
+        const login = this.getAttribute('data-login');
+        const name = this.getAttribute('data-name');
+        const email = this.getAttribute('data-email');
+        const phone = this.getAttribute('data-phone');
+        const role = this.getAttribute('data-role');
+        
+        document.getElementById('edit_user_id').value = userId;
+        document.getElementById('edit_login').value = login;
+        document.getElementById('edit_name').value = name;
+        document.getElementById('edit_email').value = email;
+        document.getElementById('edit_phone').value = phone;
+        document.getElementById('edit_role').value = role;
+    });
+});
+
+// Search functionality for users
+document.getElementById('user-search').addEventListener('input', function() {
+    const searchTerm = this.value.toLowerCase();
+    const tableBody = document.getElementById('user-table-body');
+    const rows = tableBody.getElementsByTagName('tr');
+    
+    for (let i = 0; i < rows.length; i++) {
+        const loginCell = rows[i].querySelector('td:first-child');
+        const nameCell = rows[i].querySelector('td:nth-child(2)');
+        
+        if (loginCell && nameCell) {
+            const loginText = loginCell.textContent.toLowerCase();
+            const nameText = nameCell.textContent.toLowerCase();
+            
+            if (loginText.includes(searchTerm) || nameText.includes(searchTerm)) {
+                rows[i].style.display = '';
+            } else {
+                rows[i].style.display = 'none';
+            }
+        }
+    }
+});
 // График заказов по дням
 new Chart(document.getElementById('chartDays'), {
     type: 'line',
