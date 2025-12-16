@@ -15,8 +15,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['user'] = $user;
         if ($user['role'] === 'admin') {
             header('Location: admin/index.php');
-        } elseif ($user['role'] === 'courier') {
-            header('Location: courier_dashboard.php');
         } else {
             header('Location: calculator.php');
         }

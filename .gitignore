@@ -1,37 +1,74 @@
 ```
-# Database and SQL files
-*.sql
+# Compiled and build artifacts
+*.pyc
+__pycache__/
+*.o
+*.obj
+*.class
+*.exe
+*.dll
+*.so
+*.a
+*.out
 
-# PHP files and build artifacts
-*.php~
-*.php.bak
-*.log
-
-# Environment files
+# Dependencies
+node_modules/
+venv/
+.venv/
 .env
 .env.local
-*.env.*
+.env.*
 
-# Cache and temporary files
-*.tmp
-*.bak
-~*
-
-# Web-related
-*.min.js
-*.min.css
-*.map
-
-# Logs
+# Logs and temp files
 *.log
-
-# IDE and editor files
-.vscode/
-.idea/
+*.tmp
 *.swp
 *.swo
 
-# OS generated files
+# Editors
+.vscode/
+.idea/
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# Build directories
+dist/
+build/
+target/
+.gradle/
+
+# Python cache
+.mypy_cache/
+.pytest_cache/
+
+# System files
 .DS_Store
 Thumbs.db
+
+# Compressed files
+*.zip
+*.gz
+*.tar
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.zst
+*.lz4
+*.lzh
+*.cab
+*.arj
+*.rpm
+*.deb
+*.Z
+*.lz
+*.lzo
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
 ```
