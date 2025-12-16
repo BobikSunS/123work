@@ -884,6 +884,7 @@ document.getElementById('user-search').addEventListener('input', function() {
     }
 });
 // График заказов по дням
+<?php if (!empty($stats_days)): ?>
 new Chart(document.getElementById('chartDays'), {
     type: 'line',
     data: {
@@ -899,8 +900,36 @@ new Chart(document.getElementById('chartDays'), {
     },
     options: { responsive: true, plugins: { legend: { display: false } } }
 });
+<?php else: ?>
+// Заглушка для пустого графика
+new Chart(document.getElementById('chartDays'), {
+    type: 'line',
+    data: {
+        labels: ['Нет данных'],
+        datasets: [{
+            label: 'Заказы',
+            data: [0],
+            borderColor: '#00ff88',
+            backgroundColor: 'rgba(0,255,136,0.2)',
+            tension: 0.4,
+            fill: true
+        }]
+    },
+    options: { 
+        responsive: true, 
+        plugins: { 
+            legend: { display: false },
+            title: {
+                display: true,
+                text: 'Нет данных за последние 7 дней'
+            }
+        }
+    }
+});
+<?php endif; ?>
 
 // Выручка по операторам
+<?php if (!empty($stats_carriers)): ?>
 new Chart(document.getElementById('chartCarriers'), {
     type: 'doughnut',
     data: {
@@ -912,6 +941,28 @@ new Chart(document.getElementById('chartCarriers'), {
     },
     options: { responsive: true }
 });
+<?php else: ?>
+// Заглушка для пустого графика
+new Chart(document.getElementById('chartCarriers'), {
+    type: 'doughnut',
+    data: {
+        labels: ['Нет данных'],
+        datasets: [{
+            data: [1],
+            backgroundColor: ['#cccccc']
+        }]
+    },
+    options: { 
+        responsive: true,
+        plugins: {
+            title: {
+                display: true,
+                text: 'Нет данных о выручке по операторам'
+            }
+        }
+    }
+});
+<?php endif; ?>
 
 // Function to update status via AJAX
 function updateStatus(event, orderId) {
@@ -986,6 +1037,7 @@ document.getElementById('order-track-search').addEventListener('input', function
         }
     }
 });
+</script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
