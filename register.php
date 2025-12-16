@@ -30,16 +30,25 @@ $db->prepare("INSERT INTO users (login, password, name, email, role) VALUES (?,?
     <link href="assets/css/style.css" rel="stylesheet">
     <style>
         body {
-            background: linear-gradient(135deg, #667eea, #764ba2);
+            background: var(--light-bg);
+            background-attachment: fixed;
             min-height: 100vh;
+            display: flex;
+            align-items: center;
+        }
+        body.dark {
+            background: var(--dark-bg);
         }
         .register-card {
-            background: rgba(255,255,255,0.95);
+            background: var(--card-bg) !important;
+            color: var(--text-primary) !important;
             border-radius: 15px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
         }
         body.dark .register-card {
-            background: #16213e !important;
+            background: var(--card-bg-dark) !important;
+            color: var(--text-light) !important;
         }
     </style>
 </head>
