@@ -1,35 +1,23 @@
-```
-# Database and SQL files
-*.sql
-
-# PHP files and build artifacts
+```php
+# Compiled and build artifacts
 *.php~
-*.php.bak
-*.log
 
-# Environment files
+# Dependencies
+vendor/
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+
+# Environment
 .env
 .env.local
 *.env.*
 
-# Cache and temporary files
-*.tmp
-*.bak
-~*
-
-# Web-related
-*.min.js
-*.min.css
-*.map
-
-# Logs
-*.log
-
-# IDE and editor files
+# Editors
 .vscode/
 .idea/
-*.swp
-*.swo
 
 # OS generated files
 .DS_Store
