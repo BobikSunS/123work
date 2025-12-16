@@ -45,13 +45,103 @@ $orders->execute([$user['id']]);
     </div>
 </nav>
 <div class="container mt-5">
-    <h2 class="text-white">История заказов</h2>
-    <?php if (isset($_GET['message']) && $_GET['message'] === 'order_already_paid'): ?>
-        <div class="alert alert-info">Этот заказ уже оплачен.</div>
-    <?php endif; ?>
-    <div class="card shadow-lg">
-        <div class="card-body">
-            <table class="table table-hover">
+        <h2 class="text-white">История заказов</h2>
+        
+        <!-- Search and Statistics -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5>Поиск по трек-номеру</h5>
+                        <input type="text" id="track-search" class="form-control" placeholder="Введите трек-номер...">
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5>Статистика по статусам</h5>
+                        <div id="status-stats">
+                            <?php 
+                            // Get status statistics
+                            $status_stats = $db->prepare("SELECT tracking_status, COUNT(*) as count FROM orders WHERE user_id=? GROUP BY tracking_status ORDER BY count DESC");
+                            $status_stats->execute([$user['id']]);
+                            $status_rows = $status_stats->fetchAll();
+                            
+                            if ($status_rows): 
+                                foreach($status_rows as $stat):
+                                    $status = $stat['tracking_status'];
+                                    $status_badge = 'bg-secondary';
+                                    switch(strtolower($status)) {
+                                        case 'created':
+                                        case 'создан':
+                                            $status_badge = 'bg-success';
+                                            $status_text = 'Создан';
+                                            break;
+                                        case 'paid':
+                                        case 'оплачен':
+                                            $status_badge = 'bg-info';
+                                            $status_text = 'Оплачен';
+                                            break;
+                                        case 'in_transit':
+                                        case 'в пути':
+                                            $status_badge = 'bg-warning';
+                                            $status_text = 'В пути';
+                                            break;
+                                        case 'sort_center':
+                                        case 'сорт. центр':
+                                            $status_badge = 'bg-warning';
+                                            $status_text = 'Сорт. центр';
+                                            break;
+                                        case 'out_for_delivery':
+                                        case 'у курьера':
+                                            $status_badge = 'bg-warning';
+                                            $status_text = 'У курьера';
+                                            break;
+                                        case 'delivered':
+                                        case 'доставлен':
+                                            $status_badge = 'bg-success';
+                                            $status_text = 'Доставлен';
+                                            break;
+                                        case 'delayed':
+                                        case 'задерживается':
+                                            $status_badge = 'bg-danger';
+                                            $status_text = 'Задерживается';
+                                            break;
+                                        case 'cancelled':
+                                        case 'отменен':
+                                            $status_badge = 'bg-dark';
+                                            $status_text = 'Отменен';
+                                            break;
+                                        case 'returned':
+                                        case 'возвращен':
+                                            $status_badge = 'bg-secondary';
+                                            $status_text = 'Возвращен';
+                                            break;
+                                        default:
+                                            $status_badge = 'bg-secondary';
+                                            $status_text = $status;
+                                    }
+                            ?>
+                                <span class="badge <?php echo $status_badge; ?> me-2"><?php echo htmlspecialchars($status_text); ?>: <?php echo $stat['count']; ?></span>
+                            <?php 
+                                endforeach;
+                            else:
+                                echo "<p class='text-muted'>Нет данных</p>";
+                            endif;
+                            ?>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <?php if (isset($_GET['message']) && $_GET['message'] === 'order_already_paid'): ?>
+            <div class="alert alert-info">Этот заказ уже оплачен.</div>
+        <?php endif; ?>
+        <div class="card shadow-lg">
+            <div class="card-body">
+                <table class="table table-hover">
                 <thead class="table-primary">
                     <tr>
                         <th>Трек</th><th>Оператор</th><th>Вес</th><th>Стоимость</th><th>Статус</th><th>Дата</th>
@@ -189,6 +279,32 @@ $orders->execute([$user['id']]);
         </div>
     </div>
 </div>
+
+<!-- Search functionality script -->
+<script>
+document.getElementById('track-search').addEventListener('input', function() {
+    const searchTerm = this.value.toLowerCase();
+    const tableRows = document.querySelectorAll('tbody tr');
+    
+    for (let i = 0; i < tableRows.length; i += 2) { // Increment by 2 because each order has 2 rows (main row + details row)
+        const trackCell = tableRows[i].querySelector('td:first-child');
+        if (trackCell) {
+            const trackText = trackCell.textContent.toLowerCase();
+            if (trackText.includes(searchTerm)) {
+                tableRows[i].style.display = '';
+                if (i + 1 < tableRows.length && tableRows[i + 1].style.display !== 'none') {
+                    tableRows[i + 1].style.display = '';
+                }
+            } else {
+                tableRows[i].style.display = 'none';
+                if (i + 1 < tableRows.length) {
+                    tableRows[i + 1].style.display = 'none';
+                }
+            }
+        }
+    }
+});
+</script>
 
 <!-- Footer -->
 <footer class="footer mt-5 py-4 bg-light border-top">
