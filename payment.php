@@ -161,7 +161,7 @@ $carrier = $carrier_stmt->fetch();
                 
                 <!-- Order summary -->
                 <div class="card mb-4">
-                    <div class="card-header bg-info text-white">
+                    <div class="card-header bg-info text-gray">
                         <h5>Информация о заказе</h5>
                     </div>
                     <div class="card-body">
@@ -212,7 +212,7 @@ $carrier = $carrier_stmt->fetch();
                 
                 <!-- Payment methods -->
                 <div class="card payment-card mb-4">
-                    <div class="card-header bg-primary text-white">
+                    <div class="card-header bg-primary text-gray">
                         <h5>Способ оплаты</h5>
                     </div>
                     <div class="card-body">

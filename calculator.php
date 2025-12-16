@@ -159,7 +159,7 @@ function formatDeliveryTime($hours) {
 </nav>
 
 <div class="container mt-5 flex-grow-1 main-content">
-    <h2 class="text-center text-white mb-4">Выберите оператора</h2>
+    <h2 class="text-center text-gray mb-4">Выберите оператора</h2>
     <div class="row justify-content-center g-4">
         <?php foreach($carriers as $c): ?>
         <div class="col-md-4 col-sm-6">

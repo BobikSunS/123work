@@ -45,7 +45,7 @@ $orders->execute([$user['id']]);
     </div>
 </nav>
 <div class="container mt-5">
-        <h2 class="text-white">История заказов</h2>
+        <h2 class="text-gray">История заказов</h2>
         
         <!-- Search and Statistics -->
         <div class="row mb-4">

@@ -106,7 +106,7 @@ $to_office = $to_office_stmt->fetch();
             
             <!-- Receipt details -->
             <div class="card receipt-card mb-4">
-                <div class="card-header bg-primary text-white">
+                <div class="card-header bg-primary text-gray">
                     <h5>Чек заказа №<?= htmlspecialchars($order['track_number']) ?></h5>
                 </div>
                 <div class="card-body">
@@ -211,7 +211,7 @@ $to_office = $to_office_stmt->fetch();
             
             <!-- FAQ section -->
             <div class="card mb-4">
-                <div class="card-header bg-info text-white">
+                <div class="card-header bg-info text-gray">
                     <h5>Часто задаваемые вопросы</h5>
                 </div>
                 <div class="card-body">
