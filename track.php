@@ -7,48 +7,12 @@ if (!$track) {
     die('Трек-номер не указан');
 }
 
-// Check if user is admin or courier to allow assignment
-$user = $_SESSION['user'];
-$can_assign_courier = ($user['role'] === 'admin' || $user['role'] === 'courier');
-
-// Handle courier assignment
-if (isset($_POST['action']) && $_POST['action'] === 'assign_courier' && $can_assign_courier) {
-    $courier_id = (int)($_POST['courier_id'] ?? 0);
-    
-    $stmt = $db->prepare("UPDATE orders SET courier_id=? WHERE track_number=?");
-    $stmt->execute([$courier_id, $track]);
-    
-    // Update status to "out_for_delivery" if it was in a previous status
-    $stmt = $db->prepare("UPDATE orders SET tracking_status='out_for_delivery' WHERE track_number=? AND tracking_status NOT IN ('delivered', 'cancelled', 'returned')");
-    $stmt->execute([$track]);
-    
-    // Add to status history
-    $stmt = $db->prepare("INSERT INTO tracking_status_history (order_id, status, description, created_at) VALUES (?, 'out_for_delivery', 'Заказ назначен курьеру', NOW())");
-    $stmt->execute([$order['id']]);
-    
-    // Refresh order data
-    $order = $db->prepare("SELECT o.*, c.name as carrier_name FROM orders o LEFT JOIN carriers c ON o.carrier_id=c.id WHERE o.track_number=?");
-    $order->execute([$track]);
-    $order = $order->fetch();
-}
-
-$order = $db->prepare("SELECT o.*, c.name as carrier_name, u.name as user_name, 
-                      courier.name as courier_name, courier.login as courier_login
-                      FROM orders o 
-                      LEFT JOIN carriers c ON o.carrier_id=c.id 
-                      LEFT JOIN users u ON o.user_id=u.id
-                      LEFT JOIN users courier ON o.courier_id=courier.id
-                      WHERE o.track_number=?");
+$order = $db->prepare("SELECT o.*, c.name as carrier_name FROM orders o LEFT JOIN carriers c ON o.carrier_id=c.id WHERE o.track_number=?");
 $order->execute([$track]);
 $order = $order->fetch();
 
 if (!$order) {
     die('Заказ не найден');
-}
-
-// Get available couriers for assignment
-if ($can_assign_courier) {
-    $couriers = $db->query("SELECT id, login, name FROM users WHERE role='courier'")->fetchAll();
 }
 
 // Define order status stages for timeline (normal delivery flow)
@@ -195,9 +159,6 @@ if (!$is_special_status) {
                     <p><strong>Оператор:</strong> <?= htmlspecialchars($order['carrier_name'] ?? 'Н/Д') ?></p>
                     <p><strong>Вес:</strong> <?= $order['weight'] ?> кг</p>
                     <p><strong>Стоимость:</strong> <?= $order['cost'] ?> BYN</p>
-                    <?php if($order['expected_delivery_date']): ?>
-                        <p><strong>Ожидаемая дата доставки:</strong> <?= date('d.m.Y', strtotime($order['expected_delivery_date'])) ?></p>
-                    <?php endif; ?>
                 </div>
                 <div class="col-md-6">
                     <p><strong>Дата создания:</strong> <?= date('d.m.Y H:i', strtotime($order['created_at'])) ?></p>
@@ -209,63 +170,8 @@ if (!$is_special_status) {
                     <p><strong>Текущий статус:</strong> 
                         <span class="badge bg-info"><?= htmlspecialchars($is_special_status ? $special_status[$current_status]['name'] : $status_stages[$current_status]['name']) ?></span>
                     </p>
-                    <?php if($order['courier_name'] || $order['courier_login']): ?>
-                        <p><strong>Назначенный курьер:</strong> 
-                            <?= htmlspecialchars($order['courier_name'] ?: $order['courier_login']) ?>
-                        </p>
-                    <?php endif; ?>
                 </div>
             </div>
-            
-            <!-- Sender and Recipient Information -->
-            <div class="mt-4">
-                <h4>Информация об отправителе и получателе</h4>
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="card">
-                            <div class="card-header bg-primary text-white">
-                                <h5 class="mb-0">Отправитель</h5>
-                            </div>
-                            <div class="card-body">
-                                <p><strong>Имя:</strong> <?= htmlspecialchars($order['sender_name'] ?? 'Н/Д') ?></p>
-                                <p><strong>Телефон:</strong> <?= htmlspecialchars($order['sender_phone'] ?? 'Н/Д') ?></p>
-                                <p><strong>Адрес:</strong> <?= htmlspecialchars($order['sender_address'] ?? 'Н/Д') ?></p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="card">
-                            <div class="card-header bg-success text-white">
-                                <h5 class="mb-0">Получатель</h5>
-                            </div>
-                            <div class="card-body">
-                                <p><strong>Имя:</strong> <?= htmlspecialchars($order['recipient_name'] ?? 'Н/Д') ?></p>
-                                <p><strong>Телефон:</strong> <?= htmlspecialchars($order['recipient_phone'] ?? 'Н/Д') ?></p>
-                                <p><strong>Адрес:</strong> <?= htmlspecialchars($order['recipient_address'] ?? 'Н/Д') ?></p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Courier Assignment Form (for admin and courier users) -->
-            <?php if ($can_assign_courier): ?>
-            <div class="mt-4">
-                <h4>Назначить курьера</h4>
-                <form method="POST" class="d-flex align-items-center">
-                    <input type="hidden" name="action" value="assign_courier">
-                    <select name="courier_id" class="form-select me-2" style="width: auto;">
-                        <option value="">Выберите курьера</option>
-                        <?php foreach($couriers as $courier): ?>
-                        <option value="<?= $courier['id'] ?>" <?= ($order['courier_id'] == $courier['id']) ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($courier['name'] ?: $courier['login']) ?>
-                        </option>
-                        <?php endforeach; ?>
-                    </select>
-                    <button type="submit" class="btn btn-warning">Назначить курьера</button>
-                </form>
-            </div>
-            <?php endif; ?>
             
             <?php if(isset($order['full_name']) && $order['full_name'] || isset($order['pickup_city']) && $order['pickup_city'] || isset($order['delivery_city']) && $order['delivery_city']): ?>
             <div class="mt-4">
