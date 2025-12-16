@@ -19,6 +19,7 @@ $user = $_SESSION['user'];
             <a href="order_form.php" class="btn btn-success me-2">Оформить заказ</a>
             <a href="history.php" class="btn btn-warning me-2">История</a>
             <?php if($user['role']==='admin'): ?><a href="admin/index.php" class="btn btn-danger me-2">Админка</a><?php endif; ?>
+            <?php if($user['role']==='courier'): ?><a href="courier_profile.php" class="btn btn-info me-2">Профиль курьера</a><?php endif; ?>
             <a href="logout.php" class="btn btn-outline-light">Выйти</a>
         </div>
     </div>
@@ -29,12 +30,19 @@ $user = $_SESSION['user'];
             <div class="card card-shadow">
                 <div class="card-body text-center">
                     <h2>Привет, <?= htmlspecialchars($user['name'] ?: $user['login']) ?>!</h2>
-                    <p class="lead">Вы вошли как: <strong><?= $user['role']==='admin'?'Администратор':'Пользователь' ?></strong></p>
+                    <p class="lead">Вы вошли как: <strong>
+                        <?= $user['role']==='admin'?'Администратор':($user['role']==='courier'?'Курьер':'Пользователь') ?>
+                    </strong></p>
                     <hr>
                     <div class="d-grid gap-3">
+                        <?php if($user['role'] !== 'courier'): ?>
                         <a href="calculator.php" class="btn btn-primary btn-lg">Рассчитать доставку</a>
                         <a href="order_form.php" class="btn btn-success btn-lg">Оформить заказ</a>
                         <a href="history.php" class="btn btn-info btn-lg">История заказов</a>
+                        <?php else: ?>
+                        <a href="courier_profile.php" class="btn btn-info btn-lg">Профиль курьера</a>
+                        <a href="track.php" class="btn btn-primary btn-lg">Отслеживание</a>
+                        <?php endif; ?>
                         <!-- New tracking functionality -->
                         <div class="card mt-3">
                             <div class="card-body">

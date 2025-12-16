@@ -147,6 +147,90 @@ if (isset($_POST['action']) && $_POST['action'] === 'delete_route') {
     }
 }
 
+// Обработка добавления нового пользователя
+if (isset($_POST['action']) && $_POST['action'] === 'add_user') {
+    $login = trim($_POST['login'] ?? '');
+    $password = $_POST['password'] ?? '';
+    $name = trim($_POST['name'] ?? '');
+    $email = trim($_POST['email'] ?? '');
+    $role = $_POST['role'] ?? 'user';
+    
+    if (!empty($login) && !empty($password)) {
+        // Проверим, что логин не занят
+        $check_stmt = $db->prepare("SELECT id FROM users WHERE login = ?");
+        $check_stmt->execute([$login]);
+        if (!$check_stmt->fetch()) {
+            $stmt = $db->prepare("INSERT INTO users (login, password, name, email, role) VALUES (?, ?, ?, ?, ?)");
+            $stmt->execute([$login, $password, $name, $email, $role]);
+        }
+    }
+}
+
+// Обработка удаления пользователя
+if (isset($_POST['action']) && $_POST['action'] === 'delete_user') {
+    $user_id = (int)($_POST['user_id'] ?? 0);
+    if ($user_id > 0 && $user_id != $_SESSION['user']['id']) { // Не позволяем удалить самого себя
+        $stmt = $db->prepare("DELETE FROM users WHERE id = ?");
+        $stmt->execute([$user_id]);
+    }
+}
+
+// Обработка обновления пользователя
+if (isset($_POST['action']) && $_POST['action'] === 'update_user') {
+    $user_id = (int)($_POST['user_id'] ?? 0);
+    $login = trim($_POST['login'] ?? '');
+    $name = trim($_POST['name'] ?? '');
+    $email = trim($_POST['email'] ?? '');
+    $role = $_POST['role'] ?? 'user';
+    $password = $_POST['password'] ?? '';
+    
+    if ($user_id > 0 && !empty($login)) {
+        if (!empty($password)) {
+            // Обновляем с паролем
+            $stmt = $db->prepare("UPDATE users SET login = ?, password = ?, name = ?, email = ?, role = ? WHERE id = ?");
+            $stmt->execute([$login, $password, $name, $email, $role, $user_id]);
+        } else {
+            // Обновляем без пароля
+            $stmt = $db->prepare("UPDATE users SET login = ?, name = ?, email = ?, role = ? WHERE id = ?");
+            $stmt->execute([$login, $name, $email, $role, $user_id]);
+        }
+    }
+}
+
+// Обработка назначения курьера на заказ
+if (isset($_POST['action']) && $_POST['action'] === 'assign_courier') {
+    $order_id = (int)($_POST['order_id'] ?? 0);
+    $courier_id = (int)($_POST['courier_id'] ?? 0);
+    
+    if ($order_id > 0 && $courier_id > 0) {
+        // Проверим, что курьер существует и имеет роль courier
+        $courier_check = $db->prepare("SELECT id FROM users WHERE id = ? AND role = 'courier'");
+        $courier_check->execute([$courier_id]);
+        if ($courier_check->fetch()) {
+            // Проверим, что назначение не существует
+            $existing = $db->prepare("SELECT id FROM courier_assignments WHERE order_id = ?");
+            $existing->execute([$order_id]);
+            if (!$existing->fetch()) {
+                // Создаем новое назначение
+                $stmt = $db->prepare("INSERT INTO courier_assignments (order_id, courier_id, status) VALUES (?, ?, 'assigned')");
+                $stmt->execute([$order_id, $courier_id]);
+                
+                // Обновляем статус заказа на 'out_for_delivery' и устанавливаем courier_id
+                $order_update = $db->prepare("UPDATE orders SET tracking_status = 'out_for_delivery', courier_id = ? WHERE id = ?");
+                $order_update->execute([$courier_id, $order_id]);
+            } else {
+                // Обновляем существующее назначение
+                $stmt = $db->prepare("UPDATE courier_assignments SET courier_id = ?, status = 'assigned' WHERE order_id = ?");
+                $stmt->execute([$courier_id, $order_id]);
+                
+                // Обновляем статус заказа на 'out_for_delivery' и устанавливаем courier_id
+                $order_update = $db->prepare("UPDATE orders SET tracking_status = 'out_for_delivery', courier_id = ? WHERE id = ?");
+                $order_update->execute([$courier_id, $order_id]);
+            }
+        }
+    }
+}
+
 // Статистика
 $total_orders = $db->query("SELECT COUNT(*) FROM orders")->fetchColumn();
 $total_revenue = $db->query("SELECT SUM(cost) FROM orders")->fetchColumn() ?: 0;
@@ -191,20 +275,22 @@ while ($row = $columns_query->fetch()) {
 if (in_array('tracking_status', $existing_columns)) {
     // Use tracking_status column if it exists
     $recent_orders = $db->query("
-        SELECT o.*, c.name as carrier_name, u.name as user_name
+        SELECT o.*, c.name as carrier_name, u.name as user_name, courier.name as courier_name
         FROM orders o
         LEFT JOIN carriers c ON o.carrier_id = c.id
         LEFT JOIN users u ON o.user_id = u.id
+        LEFT JOIN users courier ON o.courier_id = courier.id
         ORDER BY o.created_at DESC
         LIMIT 20
     ")->fetchAll();
 } else {
     // Use all columns but ensure tracking_status is available with default value
     $recent_orders = $db->query("
-        SELECT o.*, c.name as carrier_name, u.name as user_name, 'created' as tracking_status
+        SELECT o.*, c.name as carrier_name, u.name as user_name, courier.name as courier_name, 'created' as tracking_status
         FROM orders o
         LEFT JOIN carriers c ON o.carrier_id = c.id
         LEFT JOIN users u ON o.user_id = u.id
+        LEFT JOIN users courier ON o.courier_id = courier.id
         ORDER BY o.created_at DESC
         LIMIT 20
     ")->fetchAll();
@@ -212,6 +298,10 @@ if (in_array('tracking_status', $existing_columns)) {
 
 $carriers = $db->query("SELECT * FROM carriers")->fetchAll();
 $offices = $db->query("SELECT o.*, c.name as carrier_name FROM offices o LEFT JOIN carriers c ON o.carrier_id = c.id ORDER BY c.name, o.city")->fetchAll();
+$couriers = $db->query("SELECT id, name, login FROM users WHERE role = 'courier'")->fetchAll();
+
+// Get user list for user management
+$users = $db->query("SELECT * FROM users ORDER BY role, name")->fetchAll();
 
 // Define status options
 $status_options = [
@@ -482,6 +572,168 @@ $status_options = [
         <div class="col-lg-4 mb-4">
 
             
+            <!-- User Management Section -->
+            <div class="card mb-4">
+                <div class="card-header bg-secondary text-white">
+                    <h5>Управление пользователями</h5>
+                </div>
+                <div class="card-body">
+                    <button class="btn btn-primary btn-sm mb-3" onclick="toggleUserForm()">+ Добавить пользователя</button>
+                    
+                    <!-- Add User Form (hidden by default) -->
+                    <div id="add-user-form" style="display: none;">
+                        <form method="POST" class="mb-3">
+                            <input type="hidden" name="action" value="add_user">
+                            <div class="mb-2">
+                                <input type="text" name="login" class="form-control form-control-sm" placeholder="Логин" required>
+                            </div>
+                            <div class="mb-2">
+                                <input type="password" name="password" class="form-control form-control-sm" placeholder="Пароль" required>
+                            </div>
+                            <div class="mb-2">
+                                <input type="text" name="name" class="form-control form-control-sm" placeholder="Имя">
+                            </div>
+                            <div class="mb-2">
+                                <input type="email" name="email" class="form-control form-control-sm" placeholder="Email">
+                            </div>
+                            <div class="mb-2">
+                                <select name="role" class="form-select form-select-sm">
+                                    <option value="user">Пользователь</option>
+                                    <option value="courier">Курьер</option>
+                                    <option value="admin">Администратор</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-success btn-sm">Создать</button>
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="toggleUserForm()">Отмена</button>
+                        </form>
+                    </div>
+                    
+                    <!-- User List with Search -->
+                    <div class="mb-2">
+                        <input type="text" id="user-search" class="form-control form-control-sm" placeholder="Поиск по имени/логину...">
+                    </div>
+                    
+                    <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                        <table class="table table-sm table-hover">
+                            <thead class="table-dark sticky-top">
+                                <tr>
+                                    <th>Имя</th>
+                                    <th>Роль</th>
+                                    <th>Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody id="user-list-body">
+                                <?php foreach($users as $user): ?>
+                                <tr>
+                                    <td><?= htmlspecialchars($user['name'] ?: $user['login']) ?></td>
+                                    <td>
+                                        <span class="badge bg-<?= $user['role'] === 'admin' ? 'danger' : ($user['role'] === 'courier' ? 'warning' : 'primary') ?>">
+                                            <?= $user['role'] === 'admin' ? 'Админ' : ($user['role'] === 'courier' ? 'Курьер' : 'Пользователь') ?>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-xs">
+                                            <button class="btn btn-sm btn-info" onclick="showEditUser(<?= $user['id'] ?>, '<?= addslashes(htmlspecialchars($user['login'])) ?>', '<?= addslashes(htmlspecialchars($user['name'] ?? '')) ?>', '<?= addslashes(htmlspecialchars($user['email'] ?? '')) ?>', '<?= $user['role'] ?>')">Изм</button>
+                                            <?php if($user['id'] != $_SESSION['user']['id']): ?>
+                                            <form method="POST" class="d-inline" onsubmit="return confirm('Удалить пользователя <?= addslashes(htmlspecialchars($user['login'])) ?>?');">
+                                                <input type="hidden" name="action" value="delete_user">
+                                                <input type="hidden" name="user_id" value="<?= $user['id'] ?>">
+                                                <button type="submit" class="btn btn-sm btn-danger">Уд</button>
+                                            </form>
+                                            <?php endif; ?>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Edit User Modal -->
+                    <div id="edit-user-modal" class="modal fade" tabindex="-1">
+                        <div class="modal-dialog modal-dialog-centered">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">Редактировать пользователя</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <form id="edit-user-form" method="POST">
+                                        <input type="hidden" name="action" value="update_user">
+                                        <input type="hidden" name="user_id" id="edit-user-id" value="">
+                                        <div class="mb-3">
+                                            <label class="form-label">Логин</label>
+                                            <input type="text" name="login" id="edit-login" class="form-control" required>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Пароль (оставьте пустым, чтобы не менять)</label>
+                                            <input type="password" name="password" id="edit-password" class="form-control">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Имя</label>
+                                            <input type="text" name="name" id="edit-name" class="form-control">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Email</label>
+                                            <input type="email" name="email" id="edit-email" class="form-control">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Роль</label>
+                                            <select name="role" id="edit-role" class="form-select">
+                                                <option value="user">Пользователь</option>
+                                                <option value="courier">Курьер</option>
+                                                <option value="admin">Администратор</option>
+                                            </select>
+                                        </div>
+                                        <button type="submit" class="btn btn-primary">Сохранить</button>
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Assign Courier Section -->
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5>Назначить курьера</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <input type="hidden" name="action" value="assign_courier">
+                        <div class="mb-2">
+                            <select name="order_id" class="form-select form-select-sm" required>
+                                <option value="">Выберите заказ</option>
+                                <?php foreach($recent_orders as $order): ?>
+                                <option value="<?= $order['id'] ?>" 
+                                    <?= ($order['tracking_status'] ?? 'created') === 'paid' || ($order['tracking_status'] ?? 'created') === 'in_transit' ? '' : 'disabled' ?>>
+                                    <?= htmlspecialchars($order['track_number']) ?> 
+                                    (<?= htmlspecialchars($order['user_name'] ?? 'Н/Д') ?>) 
+                                    - <?= $order['cost'] ?> BYN
+                                    <?php if($order['tracking_status'] !== 'paid' && $order['tracking_status'] !== 'in_transit'): ?>
+                                        (<?= htmlspecialchars($status_options[$order['tracking_status'] ?? 'created'] ?? 'Обработан') ?> - нельзя назначить)
+                                    <?php endif; ?>
+                                </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="mb-2">
+                            <select name="courier_id" class="form-select form-select-sm" required>
+                                <option value="">Выберите курьера</option>
+                                <?php foreach($couriers as $courier): ?>
+                                <option value="<?= $courier['id'] ?>">
+                                    <?= htmlspecialchars($courier['name'] ?: $courier['login']) ?>
+                                </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-info btn-sm w-100">Назначить</button>
+                    </form>
+                </div>
+            </div>
+            
             <!-- Full order status management -->
             <div class="card mb-4" id="order-status-full">
                 <div class="card-header bg-warning text-dark">
@@ -691,6 +943,48 @@ document.getElementById('order-track-search').addEventListener('input', function
         }
     }
 });
+
+// Search functionality for users
+document.getElementById('user-search').addEventListener('input', function() {
+    const searchTerm = this.value.toLowerCase();
+    const tableBody = document.getElementById('user-list-body');
+    const rows = tableBody.getElementsByTagName('tr');
+    
+    for (let i = 0; i < rows.length; i++) {
+        const nameCell = rows[i].querySelector('td:first-child'); // Name is in first column
+        if (nameCell) {
+            const nameText = nameCell.textContent.toLowerCase();
+            if (nameText.includes(searchTerm)) {
+                rows[i].style.display = '';
+            } else {
+                rows[i].style.display = 'none';
+            }
+        }
+    }
+});
+
+// Toggle add user form
+function toggleUserForm() {
+    const form = document.getElementById('add-user-form');
+    if (form.style.display === 'none') {
+        form.style.display = 'block';
+    } else {
+        form.style.display = 'none';
+    }
+}
+
+// Show edit user modal
+function showEditUser(userId, login, name, email, role) {
+    document.getElementById('edit-user-id').value = userId;
+    document.getElementById('edit-login').value = login;
+    document.getElementById('edit-name').value = name;
+    document.getElementById('edit-email').value = email;
+    document.getElementById('edit-role').value = role;
+    
+    // Show the modal using Bootstrap's modal API
+    const modal = new bootstrap.Modal(document.getElementById('edit-user-modal'));
+    modal.show();
+}
 </script>
 </body>
 </html>
