@@ -36,9 +36,15 @@ $orders->execute([$user['id']]);
     <div class="container-fluid">
         <a class="navbar-brand">История заказов</a>
         <div>
+            <?php if($user['role'] !== 'courier'): ?>
             <a href="calculator.php" class="btn btn-light me-2">Калькулятор</a>
             <a href="order_form.php" class="btn btn-success me-2">Оформить заказ</a>
+            <?php else: ?>
+            <a href="courier_profile.php" class="btn btn-info me-2">Профиль курьера</a>
+            <a href="track.php" class="btn btn-primary me-2">Отслеживание</a>
+            <?php endif; ?>
             <?php if($user['role']==='admin'): ?><a href="admin/index.php" class="btn btn-danger me-2">Админка</a><?php endif; ?>
+            <?php if($user['role']==='courier'): ?><a href="courier_profile.php" class="btn btn-info me-2">Профиль курьера</a><?php endif; ?>
             <a href="logout.php" class="btn btn-outline-light">Выйти</a>
         </div>
     </div>
