@@ -193,6 +193,20 @@ $carrier = $carrier_stmt->fetch();
                                 <p><strong>Трек-номер:</strong> <?= htmlspecialchars($order['track_number']) ?></p>
                             </div>
                         </div>
+                        
+                        <!-- Sender and Recipient information -->
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                <h6>Отправитель:</h6>
+                                <p><?= htmlspecialchars($order['full_name'] ?? 'Н/Д') ?></p>
+                                <p><?= htmlspecialchars($order['home_address'] ?? 'Адрес не указан') ?></p>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>Получатель:</h6>
+                                <p><?= htmlspecialchars($order['recipient_name'] ?? 'Н/Д') ?></p>
+                                <p><?= htmlspecialchars($order['recipient_address'] ?? 'Адрес не указан') ?></p>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 
