@@ -18,7 +18,7 @@ $user = $_SESSION['user'];
             <?php if($user['role'] !== 'courier'): ?>
             <a href="calculator.php" class="btn btn-light me-2">Калькулятор</a>
             <a href="order_form.php" class="btn btn-success me-2">Оформить заказ</a>
-            <a href="history.php" class="btn btn-warning me-2">История</a>
+            <a href="history.php" class="btn btn-info me-2">История</a>
             <?php endif; ?>
             <?php if($user['role']==='admin'): ?><a href="admin/index.php" class="btn btn-danger me-2">Админка</a><?php endif; ?>
             <?php if($user['role']==='courier'): ?><a href="courier_dashboard.php" class="btn btn-info me-2">Панель курьера</a><?php endif; ?>
@@ -29,7 +29,7 @@ $user = $_SESSION['user'];
 <div class="container mt-5 flex-grow-1 main-content">
     <div class="row justify-content-center">
         <div class="col-md-6">
-            <div class="card card-shadow">
+            <div class="card shadow-lg" style="backdrop-filter: blur(10px);">
                 <div class="card-body text-center">
                     <h2>Привет, <?= htmlspecialchars($user['name'] ?: $user['login']) ?>!</h2>
                     <p class="lead">Вы вошли как: <strong><?= $user['role']==='admin'?'Администратор':($user['role']==='courier'?'Курьер':'Пользователь') ?></strong></p>
@@ -58,8 +58,8 @@ $user = $_SESSION['user'];
                         <?php endif; ?>
                     </div>
                     <div class="mt-4">
-                        <button onclick="toggleTheme()" class="btn btn-outline-warning btn-lg">
-                            Тёмная тема
+                        <button onclick="toggleTheme()" class="btn btn-warning btn-lg">
+                            Переключить тему
                         </button>
                     </div>
                 </div>
@@ -69,11 +69,11 @@ $user = $_SESSION['user'];
 </div>
 
 <!-- Footer -->
-<footer class="footer mt-auto py-3" style="background-color: rgba(0,0,0,0.05);">
-    <div class="container text-center text-muted">
-        <p class="mb-1" style="opacity: 0.5; color: #999 !important;">&copy; 2025 Служба доставки. Все права защищены.</p>
-        <p class="mb-1" style="opacity: 0.5; color: #999 !important;">Контактный телефон: +375-25-005-50-50</p>
-        <p class="mb-0" style="opacity: 0.5; color: #999 !important;">Email: freedeliverya@gmail.com</p>
+<footer class="footer mt-auto py-4">
+    <div class="container text-center">
+        <p class="mb-1">&copy; 2025 Служба доставки. Все права защищены.</p>
+        <p class="mb-1">Контактный телефон: +375-25-005-50-50</p>
+        <p class="mb-0">Email: freedeliverya@gmail.com</p>
     </div>
 </footer>
 

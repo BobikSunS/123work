@@ -14,11 +14,11 @@ if (isset($_SESSION['user'])) header('Location: calculator.php');
 <div class="container">
     <div class="row justify-content-center">
         <div class="col-md-5">
-            <div class="card card-shadow bg-white p-5">
-                <h1 class="text-center mb-4 fw-bold text-primary">Расчёт доставки</h1>
+            <div class="card p-5 shadow-lg" style="backdrop-filter: blur(10px);">
+                <h1 class="text-center mb-4 fw-bold" style="color: var(--primary-color);">Расчёт доставки</h1>
                 <p class="text-center text-muted mb-4">Автоматизированная система расчёта почтовых маршрутов</p>
                 <a href="login.php" class="btn btn-primary btn-lg w-100 mb-3">Войти</a>
-                <a href="register.php" class="btn btn-outline-success btn-lg w-100">Регистрация</a>
+                <a href="register.php" class="btn btn-success btn-lg w-100">Регистрация</a>
                 <hr>
                 <small class="text-center d-block text-muted">Админ: admin / admin</small>
             </div>

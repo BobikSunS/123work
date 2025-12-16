@@ -36,8 +36,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link href="assets/css/style.css" rel="stylesheet">
     <style>
         body { 
-            background: var(--bg-light);
-            color: var(--text-light);
+            background: var(--light-bg);
+            color: var(--text-primary);
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -45,20 +45,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             font-family: 'Segoe UI', sans-serif;
         }
         body.dark { 
-            background: var(--bg-dark);
-            color: var(--text-dark);
+            background: var(--dark-bg);
+            color: var(--text-light);
         }
         .card { 
             max-width: 420px; 
             margin: 100px auto; 
             border-radius: 20px; 
             box-shadow: 0 15px 35px rgba(0,0,0,0.3); 
-            background: var(--card-light) !important;
-            color: var(--text-light) !important;
+            background: var(--card-bg) !important;
+            color: var(--text-primary) !important;
         }
         body.dark .card { 
-            background: var(--card-dark) !important;
-            color: var(--text-dark) !important;
+            background: var(--card-bg-dark) !important;
+            color: var(--text-light) !important;
         }
         .form-control, .btn {
             border-radius: 10px !important;
@@ -66,10 +66,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .login-title {
             font-weight: 600;
             margin-bottom: 1.5rem;
-            color: var(--text-light);
+            color: var(--text-primary);
         }
         body.dark .login-title {
-            color: var(--text-dark);
+            color: var(--text-light);
         }
     </style>
 </head>
