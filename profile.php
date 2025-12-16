@@ -15,10 +15,13 @@ $user = $_SESSION['user'];
     <div class="container-fluid">
         <a class="navbar-brand">Профиль пользователя</a>
         <div>
+            <?php if($user['role'] !== 'courier'): ?>
             <a href="calculator.php" class="btn btn-light me-2">Калькулятор</a>
             <a href="order_form.php" class="btn btn-success me-2">Оформить заказ</a>
             <a href="history.php" class="btn btn-warning me-2">История</a>
+            <?php endif; ?>
             <?php if($user['role']==='admin'): ?><a href="admin/index.php" class="btn btn-danger me-2">Админка</a><?php endif; ?>
+            <?php if($user['role']==='courier'): ?><a href="courier_dashboard.php" class="btn btn-info me-2">Панель курьера</a><?php endif; ?>
             <a href="logout.php" class="btn btn-outline-light">Выйти</a>
         </div>
     </div>
@@ -29,9 +32,10 @@ $user = $_SESSION['user'];
             <div class="card card-shadow">
                 <div class="card-body text-center">
                     <h2>Привет, <?= htmlspecialchars($user['name'] ?: $user['login']) ?>!</h2>
-                    <p class="lead">Вы вошли как: <strong><?= $user['role']==='admin'?'Администратор':'Пользователь' ?></strong></p>
+                    <p class="lead">Вы вошли как: <strong><?= $user['role']==='admin'?'Администратор':($user['role']==='courier'?'Курьер':'Пользователь') ?></strong></p>
                     <hr>
                     <div class="d-grid gap-3">
+                        <?php if($user['role'] !== 'courier'): ?>
                         <a href="calculator.php" class="btn btn-primary btn-lg">Рассчитать доставку</a>
                         <a href="order_form.php" class="btn btn-success btn-lg">Оформить заказ</a>
                         <a href="history.php" class="btn btn-info btn-lg">История заказов</a>
@@ -48,6 +52,10 @@ $user = $_SESSION['user'];
                                 <p class="text-muted small">Введите 12-значный трек-номер для отслеживания статуса доставки</p>
                             </div>
                         </div>
+                        <?php else: ?>
+                        <a href="courier_dashboard.php" class="btn btn-primary btn-lg">Панель курьера</a>
+                        <p class="text-muted">Вам доступна панель курьера с назначенными заказами</p>
+                        <?php endif; ?>
                     </div>
                     <div class="mt-4">
                         <button onclick="toggleTheme()" class="btn btn-outline-warning btn-lg">

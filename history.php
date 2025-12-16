@@ -1,6 +1,7 @@
 <?php require 'db.php'; 
 if (!isset($_SESSION['user'])) header('Location: index.php');
 $user = $_SESSION['user'];
+if ($user['role'] === 'courier') header('Location: courier_dashboard.php');
 $orders = $db->prepare("SELECT o.*, c.name as carrier_name FROM orders o LEFT JOIN carriers c ON o.carrier_id=c.id WHERE o.user_id=? ORDER BY o.created_at DESC");
 $orders->execute([$user['id']]);
 ?>

@@ -13,7 +13,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     } elseif ($db->query("SELECT id FROM users WHERE login = '$login'")->fetch()) {
         $error = "Логин уже занят";
     } else {
-        $db->prepare("INSERT INTO users (login, password, name, email, role) VALUES (?,?,?,?,'user')")
+        // Only allow 'user' role for public registration
+$db->prepare("INSERT INTO users (login, password, name, email, role) VALUES (?,?,?,?,'user')")
             ->execute([$login, $pass, $name, $email]);
         $success = "Аккаунт создан! Теперь войдите.";
     }

@@ -2,6 +2,7 @@
 require 'cost_calculator.php';
 if (!isset($_SESSION['user'])) header('Location: index.php');
 $user = $_SESSION['user'];
+if ($user['role'] === 'courier') header('Location: courier_dashboard.php');
 
 $carriers = $db->query("SELECT * FROM carriers ORDER BY name")->fetchAll();
 
