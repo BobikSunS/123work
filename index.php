@@ -20,7 +20,7 @@ if (isset($_SESSION['user'])) header('Location: calculator.php');
                 <a href="login.php" class="btn btn-primary btn-lg w-100 mb-3">Войти</a>
                 <a href="register.php" class="btn btn-outline-success btn-lg w-100">Регистрация</a>
                 <hr>
-                <small class="text-center d-block text-muted">Админ: admin / admin123</small>
+                <small class="text-center d-block text-muted">Админ: admin / admin</small>
             </div>
         </div>
     </div>
