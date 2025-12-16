@@ -223,7 +223,6 @@ function formatDeliveryTime($hours) {
             <div class="row g-3 mb-4">
                 <div class="col-md-12 text-center">
                     <button type="button" class="btn btn-success btn-lg" onclick="showRoute()" id="show-route-btn" disabled>Показать маршрут</button>
-                    <button type="button" class="btn btn-primary ms-2" onclick="showFormula()" id="show-formula-btn" disabled>Формула расчета</button>
                 </div>
             </div>
             
