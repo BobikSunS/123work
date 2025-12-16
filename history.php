@@ -46,6 +46,76 @@ $orders->execute([$user['id']]);
 </nav>
 <div class="container mt-5">
     <h2 class="text-white">История заказов</h2>
+    
+    <!-- Search and Statistics -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card p-3">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                    <input type="text" id="trackSearch" class="form-control" placeholder="Поиск по трек-номеру...">
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card p-3">
+                <h5>Статистика по статусам</h5>
+                <div class="row">
+                    <?php
+                    // Get order statistics by status
+                    $stats_query = $db->prepare("SELECT tracking_status, COUNT(*) as count FROM orders WHERE user_id=? GROUP BY tracking_status");
+                    $stats_query->execute([$user['id']]);
+                    $status_stats = $stats_query->fetchAll(PDO::FETCH_ASSOC);
+                    
+                    foreach($status_stats as $stat):
+                        $status = $stat['tracking_status'];
+                        $status_badge = 'bg-secondary';
+                        switch(strtolower($status)) {
+                            case 'created':
+                            case 'создан':
+                                $status_badge = 'bg-success';
+                                break;
+                            case 'paid':
+                            case 'оплачен':
+                                $status_badge = 'bg-info';
+                                break;
+                            case 'in_transit':
+                            case 'в пути':
+                            case 'sort_center':
+                            case 'сорт. центр':
+                            case 'out_for_delivery':
+                            case 'у курьера':
+                                $status_badge = 'bg-warning';
+                                break;
+                            case 'delivered':
+                            case 'доставлен':
+                                $status_badge = 'bg-success';
+                                break;
+                            case 'delayed':
+                            case 'задерживается':
+                                $status_badge = 'bg-danger';
+                                break;
+                            case 'cancelled':
+                            case 'отменен':
+                                $status_badge = 'bg-dark';
+                                break;
+                            case 'returned':
+                            case 'возвращен':
+                                $status_badge = 'bg-secondary';
+                                break;
+                            default:
+                                $status_badge = 'bg-secondary';
+                        }
+                    ?>
+                    <div class="col-6 col-md-4 col-lg-3 mb-2">
+                        <span class="badge <?php echo $status_badge; ?> me-1"><?php echo $stat['count']; ?> <?php echo htmlspecialchars($status); ?></span>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <?php if (isset($_GET['message']) && $_GET['message'] === 'order_already_paid'): ?>
         <div class="alert alert-info">Этот заказ уже оплачен.</div>
     <?php endif; ?>
@@ -199,6 +269,44 @@ $orders->execute([$user['id']]);
     </div>
 </footer>
 
+<script>
+// Search functionality for tracking numbers
+document.getElementById('trackSearch').addEventListener('input', function() {
+    const searchTerm = this.value.toLowerCase();
+    const tableRows = document.querySelectorAll('tbody tr:not([style*="display: none"])'); // Only visible rows
+    
+    for (let i = 0; i < tableRows.length; i += 1) { // Increment by 1 to handle both main rows and detail rows
+        const row = tableRows[i];
+        
+        // Skip detail rows (they don't have track numbers)
+        if (row.cells.length !== 6) {
+            continue;
+        }
+        
+        const trackCell = row.querySelector('td:first-child strong');
+        if (trackCell) {
+            const trackText = trackCell.textContent.toLowerCase();
+            if (trackText.includes(searchTerm)) {
+                row.style.display = '';
+                
+                // Show the associated detail row if it exists
+                const nextRow = row.nextElementSibling;
+                if (nextRow && nextRow.cells && nextRow.cells[0].colSpan === 6) {
+                    nextRow.style.display = '';
+                }
+            } else {
+                row.style.display = 'none';
+                
+                // Hide the associated detail row if it exists
+                const nextRow = row.nextElementSibling;
+                if (nextRow && nextRow.cells && nextRow.cells[0].colSpan === 6) {
+                    nextRow.style.display = 'none';
+                }
+            }
+        }
+    }
+});
+</script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
