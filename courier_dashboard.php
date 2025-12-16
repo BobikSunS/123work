@@ -167,6 +167,10 @@ if (isset($_POST['action']) && $_POST['action'] === 'update_courier_status') {
                                         <span class="text-muted">Завершено</span>
                                     <?php endif; ?>
                                 </div>
+                                <div class="mt-2">
+                                    <a href="delivery_receipt.php?order_id=<?= $order['id'] ?>" class="btn btn-sm btn-primary" target="_blank">Печать накладной</a>
+                                    <a href="delivery_info.php?order_id=<?= $order['id'] ?>" class="btn btn-sm btn-secondary mt-1" target="_blank">Инфо для получателя</a>
+                                </div>
                             </td>
                         </tr>
                         <?php endforeach; ?>

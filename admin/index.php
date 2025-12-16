@@ -48,6 +48,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'update_carrier') {
 if (isset($_POST['action']) && $_POST['action'] === 'update_status') {
     $order_id = (int)($_POST['order_id'] ?? 0);
     $new_status = $_POST['new_status'] ?? 'created';
+    $status_reason = trim($_POST['status_reason'] ?? '');
     
     // Check if tracking_status column exists
     $columns_query = $db->query("SHOW COLUMNS FROM orders");
@@ -80,8 +81,12 @@ if (isset($_POST['action']) && $_POST['action'] === 'update_status') {
             if ($tables_query->rowCount() > 0) {
                 // Add to status history if table exists and status actually changed
                 if ($current_status !== $new_status) {
+                    $description = "Статус изменен с '{$current_status}' на '{$new_status}'";
+                    if ($status_reason) {
+                        $description .= ". Причина: {$status_reason}";
+                    }
                     $stmt = $db->prepare("INSERT INTO tracking_status_history (order_id, status, description, created_at) VALUES (?, ?, ?, NOW())");
-                    $stmt->execute([$order_id, $new_status, "Статус изменен с '{$current_status}' на '{$new_status}'"]);
+                    $stmt->execute([$order_id, $new_status, $description]);
                 }
             }
         } catch (PDOException $e) {
@@ -591,6 +596,7 @@ $status_options = [
                                                     </option>
                                                     <?php endforeach; ?>
                                                 </select>
+                                                <input type="text" name="status_reason" class="form-control form-control-sm d-inline w-auto me-1" placeholder="Причина (опционально)" style="max-width: 150px;">
                                                 <?php if ($order['tracking_status'] === 'out_for_delivery' && $order['courier_id']): ?>
                                                     <button class="btn btn-sm btn-warning" disabled title="Ожидание подтверждения курьером">Изменить</button>
                                                     <small class="text-warning">Ожидание курьера</small>
