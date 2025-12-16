@@ -397,7 +397,8 @@ $status_options = [
                                                 <td><input name="speed_kmh" value="<?= $c['speed_kmh'] ?>" class="form-control form-control-sm"></td>
                                                 <td>
                                                     <div class="d-flex flex-wrap gap-1">
-                                                        <button type="submit" class="btn btn-sm btn-success me-1" title="Сохранить изменения"><i class="fas fa-save"></i></button>
+                                                        <button class="btn btn-sm btn-success me-1" title="Сохранить изменения"><i class="fas fa-save"></i></button>
+                                                        <a href="routes.php?carrier=<?= $c['id'] ?>" class="btn btn-sm btn-info me-1" title="Маршруты"><i class="fas fa-route"></i></a>
                                                         <form method="POST" class="d-inline" onsubmit="return confirm('Удалить оператора <?= addslashes(htmlspecialchars($c['name'])) ?>?');">
                                                             <input type="hidden" name="action" value="delete_carrier">
                                                             <input type="hidden" name="id" value="<?= $c['id'] ?>">
@@ -730,8 +731,8 @@ $status_options = [
                                                     </span>
                                                 </td>
                                                 <td>
-                                                    <div class="d-flex flex-wrap gap-1">
-                                                        <button class="btn btn-primary btn-sm edit-user-btn" 
+                                                    <div class="btn-group btn-group-sm">
+                                                        <button class="btn btn-primary edit-user-btn" 
                                                                 data-user-id="<?= $u['id'] ?>" 
                                                                 data-login="<?= htmlspecialchars($u['login']) ?>" 
                                                                 data-name="<?= htmlspecialchars($u['name'] ?? '') ?>" 
@@ -740,13 +741,13 @@ $status_options = [
                                                                 data-role="<?= $u['role'] ?>"
                                                                 data-bs-toggle="modal" 
                                                                 data-bs-target="#editUserModal">
-                                                            <i class="fas fa-edit"></i> Редактировать
+                                                            <i class="fas fa-edit"></i>
                                                         </button>
                                                         <?php if($u['id'] > 1): // Не удаляем администратора по умолчанию ?>
                                                         <form method="POST" class="d-inline" onsubmit="return confirm('Удалить пользователя <?= addslashes(htmlspecialchars($u['login'])) ?>?');">
                                                             <input type="hidden" name="action" value="delete_user">
                                                             <input type="hidden" name="user_id" value="<?= $u['id'] ?>">
-                                                            <button type="submit" class="btn btn-danger btn-sm"><i class="fas fa-trash"></i> Удалить</button>
+                                                            <button type="submit" class="btn btn-danger"><i class="fas fa-trash"></i></button>
                                                         </form>
                                                         <?php endif; ?>
                                                     </div>
