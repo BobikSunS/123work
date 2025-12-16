@@ -1,5 +1,86 @@
-<?php require 'db.php';
+<?php 
+require 'db.php';
 if (!isset($_SESSION['user'])) header('Location: index.php');
+
+// Обработка назначения курьера на заказ
+if (isset($_POST['action']) && $_POST['action'] === 'assign_courier' && $_SESSION['user']['role'] === 'admin') {
+    $order_id = (int)($_POST['order_id'] ?? 0);
+    $courier_id = (int)($_POST['courier_id'] ?? 0);
+    
+    $stmt = $db->prepare("UPDATE orders SET courier_id=? WHERE id=?");
+    $stmt->execute([$courier_id, $order_id]);
+    
+    // Обновляем статус заказа на "у курьера" если он был в другом статусе
+    $stmt = $db->prepare("UPDATE orders SET tracking_status='out_for_delivery' WHERE id=? AND tracking_status NOT IN ('delivered', 'cancelled', 'returned')");
+    $stmt->execute([$order_id]);
+    
+    // Добавляем в историю статусов
+    $stmt = $db->prepare("INSERT INTO tracking_status_history (order_id, status, description, created_at) VALUES (?, 'out_for_delivery', 'Заказ назначен курьеру', NOW())");
+    $stmt->execute([$order_id]);
+    
+    // Перезагружаем страницу для обновления данных
+    header("Location: track.php?track=" . urlencode($_GET['track']));
+    exit;
+}
+
+// Обработка изменения статуса заказа
+if (isset($_POST['action']) && $_POST['action'] === 'update_status' && $_SESSION['user']['role'] === 'admin') {
+    $order_id = (int)($_POST['order_id'] ?? 0);
+    $new_status = $_POST['new_status'] ?? 'created';
+    $status_reason = trim($_POST['status_reason'] ?? '');
+    
+    // Check if tracking_status column exists
+    $columns_query = $db->query("SHOW COLUMNS FROM orders");
+    $existing_columns = [];
+    while ($row = $columns_query->fetch()) {
+        $existing_columns[] = $row['Field'];
+    }
+    
+    // Update the tracking_status in the orders table if column exists
+    if (in_array('tracking_status', $existing_columns)) {
+        try {
+            // Get the current status to compare with new status
+            $current_order = $db->prepare("SELECT tracking_status FROM orders WHERE id = ?");
+            $current_order->execute([$order_id]);
+            $current_order_data = $current_order->fetch();
+            $current_status = $current_order_data['tracking_status'] ?? 'created';
+            
+            // Update the tracking_status in the orders table
+            $stmt = $db->prepare("UPDATE orders SET tracking_status=? WHERE id=?");
+            $stmt->execute([$new_status, $order_id]);
+            
+            // If the new status is 'delivered', update the delivery date
+            if ($new_status === 'delivered') {
+                $delivery_stmt = $db->prepare("UPDATE orders SET delivery_date = CURDATE() WHERE id = ?");
+                $delivery_stmt->execute([$order_id]);
+            }
+            
+            // Check if tracking_status_history table exists
+            $tables_query = $db->query("SHOW TABLES LIKE 'tracking_status_history'");
+            if ($tables_query->rowCount() > 0) {
+                // Add to status history if table exists and status actually changed
+                if ($current_status !== $new_status) {
+                    $description = "Статус изменен с '{$current_status}' на '{$new_status}'";
+                    if ($status_reason) {
+                        $description .= ". Причина: {$status_reason}";
+                    }
+                    $stmt = $db->prepare("INSERT INTO tracking_status_history (order_id, status, description, created_at) VALUES (?, ?, ?, NOW())");
+                    $stmt->execute([$order_id, $new_status, $description]);
+                }
+            }
+        } catch (PDOException $e) {
+            // Handle error silently or log it
+            error_log("Error updating order status: " . $e->getMessage());
+        }
+    }
+    
+    // Перезагружаем страницу для обновления данных
+    header("Location: track.php?track=" . urlencode($_GET['track']));
+    exit;
+}
+
+// Get couriers for assignment
+$couriers = $db->query("SELECT id, login, name FROM users WHERE role='courier'")->fetchAll();
 
 $track = $_GET['track'] ?? '';
 
@@ -206,6 +287,82 @@ if (!$is_special_status) {
                         </p>
                     </div>
                     <?php endif; ?>
+                </div>
+            </div>
+            <?php endif; ?>
+            <!-- Admin functionality for courier assignment and status updates -->
+            <?php if($_SESSION["user"]["role"] === "admin"): ?>
+            <div class="mt-4 p-3 bg-light rounded">
+                <h4>Административные действия</h4>
+                
+                <!-- Courier assignment -->
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <h5>Назначение курьера</h5>
+                        <form method="POST" class="d-flex align-items-center">
+                            <input type="hidden" name="action" value="assign_courier">
+                            <input type="hidden" name="order_id" value="<?= $order["id"] ?>">
+                            <select name="courier_id" class="form-select me-2" style="width: auto;">
+                                <option value="">Выберите курьера</option>
+                                <?php foreach($couriers as $courier): ?>
+                                <option value="<?= $courier["id"] ?>" <?= ($order["courier_id"] == $courier["id"]) ? "selected" : "" ?>>
+                                    <?= htmlspecialchars($courier["name"] ?: $courier["login"]) ?>
+                                </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <button type="submit" class="btn btn-warning">Назначить курьера</button>
+                        </form>
+                        
+                        <?php if($order["courier_id"]): ?>
+                        <?php 
+                        $assigned_courier = $db->prepare("SELECT name, login FROM users WHERE id = ?");
+                        $assigned_courier->execute([$order["courier_id"]]);
+                        $assigned_courier_data = $assigned_courier->fetch();
+                        ?>
+                        <p class="mt-2 mb-0">
+                            <strong>Назначенный курьер:</strong> 
+                            <?= htmlspecialchars($assigned_courier_data["name"] ?: $assigned_courier_data["login"]) ?>
+                        </p>
+                        <?php endif; ?>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <h5>Изменение статуса</h5>
+                        <form method="POST" class="d-flex align-items-center">
+                            <input type="hidden" name="action" value="update_status">
+                            <input type="hidden" name="order_id" value="<?= $order["id"] ?>">
+                            <select name="new_status" class="form-select me-2" style="width: auto;">
+                                <?php 
+                                $status_options = [
+                                    "created" => "Создан",
+                                    "paid" => "Оплачен",
+                                    "in_transit" => "В пути",
+                                    "sort_center" => "Сорт. центр",
+                                    "out_for_delivery" => "У курьера",
+                                    "delivered" => "Доставлен",
+                                    "delayed" => "Задерживается",
+                                    "cancelled" => "Отменен",
+                                    "returned" => "Возвращен"
+                                ];
+                                foreach($status_options as $status_key => $status_name): ?>
+                                <option value="<?= $status_key ?>" <?= ($order["tracking_status"] == $status_key) ? "selected" : "" ?>>
+                                    <?= $status_name ?>
+                                </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <input type="text" name="status_reason" class="form-control me-2" placeholder="Причина (опционально)" style="width: 200px;">
+                            <button type="submit" class="btn btn-success">Изменить статус</button>
+                        </form>
+                    </div>
+                </div>
+                
+                <!-- Print links -->
+                <div class="row">
+                    <div class="col-md-12">
+                        <h5>Печать документов</h5>
+                        <a href="delivery_receipt.php?order_id=<?= $order["id"] ?>" class="btn btn-primary me-2" target="_blank">Печать накладной</a>
+                        <a href="delivery_info.php?order_id=<?= $order["id"] ?>" class="btn btn-secondary" target="_blank">Инфо для получателя</a>
+                    </div>
                 </div>
             </div>
             <?php endif; ?>
