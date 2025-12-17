@@ -78,52 +78,6 @@ $carrier = $carrier_stmt->fetch();
     <title>Оплата заказа</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="assets/css/style.css" rel="stylesheet">
-    <style>
-        .payment-card {
-            background: rgba(255,255,255,0.95);
-            border-radius: 15px;
-            padding: 30px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-        }
-        body.dark .payment-card {
-            background: #16213e !important;
-        }
-        .payment-method {
-            border: 2px solid #dee2e6;
-            border-radius: 10px;
-            padding: 20px;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        .payment-method:hover {
-            border-color: #0d6efd;
-            background-color: #f8f9fa;
-        }
-        body.dark .payment-method:hover {
-            background-color: #1a2a4a;
-        }
-        .payment-method.selected {
-            border-color: #0d6efd;
-            background-color: #e7f3ff;
-        }
-        body.dark .payment-method.selected {
-            background-color: #1a2a4a;
-            border-color: #4dabf7;
-        }
-        .card-input {
-            display: none;
-        }
-        .cash-notice {
-            background-color: #fff3cd;
-            border-left: 4px solid #ffc107;
-            padding: 15px;
-            margin: 15px 0;
-            border-radius: 5px;
-        }
-        body.dark .cash-notice {
-            background-color: #3a2910;
-        }
-    </style>
 </head>
 <body>
 <nav class="navbar navbar-dark bg-primary shadow-lg fixed-top">
