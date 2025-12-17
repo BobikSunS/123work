@@ -38,36 +38,53 @@ try {
     $distance = floatval($existing_route['distance_km']);
     $duration_min = intval($existing_route['duration_min']);
 
+    // Get origin and destination city names efficiently
+    $stmt = $db->prepare("SELECT city FROM offices WHERE id = ?");
+    $stmt->execute([$from_office_id]);
+    $from_city = $stmt->fetchColumn();
+    
+    $stmt->execute([$to_office_id]);
+    $to_city = $stmt->fetchColumn();
+
+    if (!$from_city || !$to_city) {
+        echo json_encode(['error' => 'Could not determine origin or destination city']);
+        exit;
+    }
+
     // Get all carriers
     $carriers = $db->query("SELECT * FROM carriers")->fetchAll();
+
+    // Pre-fetch all offices grouped by carrier and city for better performance
+    $stmt = $db->query("SELECT id, carrier_id, city FROM offices");
+    $all_offices = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    $offices_by_carrier_and_city = [];
+    foreach ($all_offices as $office) {
+        $carrier_id = $office['carrier_id'];
+        $city = $office['city'];
+        if (!isset($offices_by_carrier_and_city[$carrier_id])) {
+            $offices_by_carrier_and_city[$carrier_id] = [];
+        }
+        if (!isset($offices_by_carrier_and_city[$carrier_id][$city])) {
+            $offices_by_carrier_and_city[$carrier_id][$city] = [];
+        }
+        $offices_by_carrier_and_city[$carrier_id][$city][] = $office['id'];
+    }
 
     $comparison_results = [];
 
     foreach ($carriers as $carrier) {
-        // Check if there are offices of this carrier in both cities
-        $from_office = $db->prepare("SELECT city FROM offices WHERE id = ?");
-        $from_office->execute([$from_office_id]);
-        $from_city = $from_office->fetchColumn();
+        $carrier_id = $carrier['id'];
         
-        $to_office = $db->prepare("SELECT city FROM offices WHERE id = ?");
-        $to_office->execute([$to_office_id]);
-        $to_city = $to_office->fetchColumn();
+        // Check if this carrier has offices in both origin and destination cities
+        $has_from_office = isset($offices_by_carrier_and_city[$carrier_id][$from_city]) && !empty($offices_by_carrier_and_city[$carrier_id][$from_city]);
+        $has_to_office = isset($offices_by_carrier_and_city[$carrier_id][$to_city]) && !empty($offices_by_carrier_and_city[$carrier_id][$to_city]);
 
-        if (!$from_city || !$to_city) {
-            continue; // Skip if we can't get city names
-        }
+        if ($has_from_office && $has_to_office) {
+            // Get an example office ID from each city for this carrier
+            $from_carrier_office_id = $offices_by_carrier_and_city[$carrier_id][$from_city][0];
+            $to_carrier_office_id = $offices_by_carrier_and_city[$carrier_id][$to_city][0];
 
-        // Check if there are offices of this carrier in both cities
-        $from_carrier_office_stmt = $db->prepare("SELECT id FROM offices WHERE carrier_id = ? AND city = ? LIMIT 1");
-        $from_carrier_office_stmt->execute([$carrier['id'], $from_city]);
-        $from_carrier_office_id = $from_carrier_office_stmt->fetchColumn();
-
-        $to_carrier_office_stmt = $db->prepare("SELECT id FROM offices WHERE carrier_id = ? AND city = ? LIMIT 1");
-        $to_carrier_office_stmt->execute([$carrier['id'], $to_city]);
-        $to_carrier_office_id = $to_carrier_office_stmt->fetchColumn();
-
-        // If both offices exist for this carrier, calculate the cost
-        if ($from_carrier_office_id && $to_carrier_office_id) {
             // Check if there's a route between these specific offices for this carrier
             $carrier_route = $db->prepare("SELECT distance_km, duration_min FROM calculated_routes WHERE (from_office_id = ? AND to_office_id = ?) OR (from_office_id = ? AND to_office_id = ?)");
             $carrier_route->execute([$from_carrier_office_id, $to_carrier_office_id, $to_carrier_office_id, $from_carrier_office_id]);
@@ -83,30 +100,36 @@ try {
                 $carrier_duration_min = $duration_min;
             }
             
-            // Calculate cost for this carrier
+            // Calculate cost for this carrier using the cost_calculator function
             $weight_for_calc = $package_type === 'letter' ? $letter_count * 0.02 : $weight;
             
             if ($weight_for_calc > $carrier['max_weight']) {
                 continue; // Skip this carrier if weight exceeds limit
             }
 
-            $cost = $carrier['base_cost'] 
-                  + $weight_for_calc * $carrier['cost_per_kg'] 
-                  + $carrier_distance * $carrier['cost_per_km'];
-
-            if ($insurance) $cost *= 1.02;
-            if ($package_type === 'letter') $cost = max($cost, 2.5);
-            if ($packaging) $cost += 3.00;
-            if ($fragile) $cost *= 1.01;
-
-            $cost = round($cost, 2);
-            $hours = round($carrier_duration_min / 60, 1);
+            // Using the proper cost calculation function
+            $result = calculateDeliveryCost(
+                $db, 
+                $carrier_id, 
+                $from_carrier_office_id, 
+                $to_carrier_office_id, 
+                $weight_for_calc, 
+                $package_type, 
+                $insurance, 
+                $letter_count, 
+                $packaging, 
+                $fragile
+            );
+            
+            $cost = $result['cost'];
+            // Use the duration from the cost calculation function if available, otherwise use the route duration
+            $hours = round($result['duration_min'] / 60, 1);
 
             $comparison_results[] = [
                 'carrier' => $carrier,
                 'cost' => $cost,
                 'hours' => $hours,
-                'distance' => $carrier_distance,
+                'distance' => $result['distance'],
                 'from_office_id' => (int)$from_carrier_office_id,
                 'to_office_id' => (int)$to_carrier_office_id
             ];
@@ -130,8 +153,8 @@ try {
     ]);
 
 } catch (Exception $e) {
-    error_log("Operator comparison error: " . $e->getMessage());
-    echo json_encode(['error' => $e->getMessage()]);
+    error_log("Operator comparison error: " . $e->getMessage() . " in file " . $e->getFile() . " on line " . $e->getLine());
+    echo json_encode(['error' => 'Internal server error occurred while comparing operators']);
     exit;
 }
 ?>
