@@ -299,9 +299,6 @@ function formatDeliveryTime($hours) {
                 <div class="col-md-6">
                     <button type="button" class="btn btn-success btn-lg w-100" onclick="showRoute()" id="show-route-btn" disabled>Показать маршрут</button>
                 </div>
-                <div class="col-md-6">
-                    <button type="button" class="btn btn-info btn-lg w-100" onclick="showOperatorComparison()" id="show-comparison-btn" disabled>Сравнить операторов</button>
-                </div>
             </div>
             
             <!-- Форма для остальных параметров -->
@@ -368,20 +365,7 @@ function formatDeliveryTime($hours) {
         </div>
     </div>
     
-    <!-- Operator Comparison Modal -->
-    <div id="operator-comparison-modal" class="modal-overlay" style="display: none;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h4>Сравнение операторов</h4>
-                <button class="close-btn" onclick="closeComparisonModal()">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div id="operator-comparison-results">
-                    <!-- Results will be loaded here via AJAX -->
-                </div>
-            </div>
-        </div>
-    </div>
+
 
     <?php if($result): ?>
     <div class="card mt-5 result-box">
@@ -598,7 +582,6 @@ function selectToOffice(officeId, city, address) {
     if (selectedFromOffice) {
         document.getElementById('show-route-btn').disabled = false;
         document.getElementById('calculate-btn').disabled = false;
-        document.getElementById('show-comparison-btn').disabled = false;
     }
 }
 
@@ -791,13 +774,6 @@ function showRoute() {
                     map.fitBounds(bounds, {padding: [50, 50]});
 
                     alert(`Маршрут построен по дорогам. Расстояние: ${data.distance.toFixed(2)} км, Время: ${data.duration} мин.`);
-
-                    // Show comparison button after route is loaded
-                    setTimeout(() => {
-                        if (confirm("Показать сравнение с другими операторами для этого маршрута?")) {
-                            showOperatorComparison();
-                        }
-                    }, 500);
                 } else {
                     // If no route coords could be processed, use straight line as fallback
                     const fromOffice = offices.find(o => o.id == selectedFromOffice);
@@ -816,13 +792,6 @@ function showRoute() {
                         map.fitBounds(bounds, {padding: [50, 50]});
 
                         alert(`Маршрут построен. Расстояние: ${data.distance.toFixed(2)} км (по прямой).`);
-
-                        // Show comparison button after route is loaded
-                        setTimeout(() => {
-                            if (confirm("Показать сравнение с другими операторами для этого маршрута?")) {
-                                showOperatorComparison();
-                            }
-                        }, 500);
                     }
                 }
             } else {
@@ -843,13 +812,6 @@ function showRoute() {
                     map.fitBounds(bounds, {padding: [50, 50]});
 
                     alert(`Маршрут построен. Расстояние: ${data.distance.toFixed(2)} км (по прямой).`);
-
-                    // Show comparison button after route is loaded
-                    setTimeout(() => {
-                        if (confirm("Показать сравнение с другими операторами для этого маршрута?")) {
-                            showOperatorComparison();
-                        }
-                    }, 500);
                 }
             }
         } else {
@@ -1115,179 +1077,15 @@ function calculateCost() {
 }
 
 // Функция для отображения сравнения операторов
-function showOperatorComparison() {
-    if (!selectedFromOffice || !selectedToOffice) {
-        alert("Пожалуйста, выберите оба офиса (отправка и получение).");
-        return;
-    }
 
-    // Собираем данные формы
-    const formData = new FormData(document.getElementById('calculation-form'));
-    const packageType = formData.get('package_type');
-    let weight;
 
-    if (packageType === 'letter') {
-        const letterCount = parseInt(formData.get('letter_count') || 1);
-        weight = letterCount * 0.02; // вес одного письма 0.02 кг
-    } else {
-        weight = parseFloat(formData.get('weight')) || 1;
-    }
 
-    const insurance = formData.get('insurance') ? 1 : 0;
-    const packaging = formData.get('packaging') ? 1 : 0;
-    const fragile = formData.get('fragile') ? 1 : 0;
-    const carrierId = document.getElementById('selected-carrier').value;
-    const letterCount = parseInt(formData.get('letter_count') || 1);
 
-    // Показываем индикатор загрузки
-    document.getElementById('operator-comparison-results').innerHTML = '<div class="text-center p-4">Загрузка сравнения операторов...</div>';
-    document.getElementById('operator-comparison-modal').style.display = 'flex';
 
-    // Отправляем запрос на сервер для получения сравнения
-    const comparisonData = {
-        from_office_id: selectedFromOffice,
-        to_office_id: selectedToOffice,
-        weight: weight,
-        package_type: packageType,
-        insurance: insurance,
-        packaging: packaging,
-        fragile: fragile,
-        letter_count: letterCount
-    };
 
-    fetch('get_operator_comparison.php', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: Object.keys(comparisonData).map(key => `${encodeURIComponent(key)}=${encodeURIComponent(comparisonData[key])}`).join('&')
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            displayOperatorComparison(data.results);
-        } else {
-            document.getElementById('operator-comparison-results').innerHTML = `<div class="alert alert-danger">Ошибка: ${data.error}</div>`;
-        }
-    })
-    .catch(error => {
-        console.error('Error getting operator comparison:', error);
-        document.getElementById('operator-comparison-results').innerHTML = '<div class="alert alert-danger">Ошибка при загрузке сравнения операторов</div>';
-    });
-}
 
-// Функция для отображения результатов сравнения
-function displayOperatorComparison(results) {
-    if (results.length === 0) {
-        document.getElementById('operator-comparison-results').innerHTML = '<div class="alert alert-info">Нет доступных операторов для этого маршрута</div>';
-        return;
-    }
 
-    let html = '<div class="comparison-list">';
-    
-    results.forEach(result => {
-        const carrier = result.carrier;
-        html += `
-            <div class="operator-item" style="background: ${carrier.color || '#f8f9fa'}; color: ${getContrastColor(carrier.color || '#f8f9fa')};">
-                <div class="operator-info">
-                    <div class="operator-name">${carrier.name}</div>
-                    <div class="operator-stats">
-                        <div>
-                            <span>Стоимость</span>
-                            <span>${result.cost} BYN</span>
-                        </div>
-                        <div>
-                            <span>Время</span>
-                            <span>${formatDeliveryTime(result.hours)}</span>
-                        </div>
-                        <div>
-                            <span>Расстояние</span>
-                            <span>${Math.round(result.distance)} км</span>
-                        </div>
-                    </div>
-                </div>
-                <button class="btn btn-primary switch-operator-btn" onclick="switchToOperator(${carrier.id}, ${result.from_office_id}, ${result.to_office_id}, ${result.cost})">
-                    Выбрать
-                </button>
-            </div>
-        `;
-    });
-    
-    html += '</div>';
-    document.getElementById('operator-comparison-results').innerHTML = html;
-}
 
-// Функция для получения контрастного цвета текста
-function getContrastColor(hexColor) {
-    // Remove # if present
-    const hex = hexColor.replace('#', '');
-    
-    // Convert hex to RGB
-    const r = parseInt(hex.substr(0, 2), 16);
-    const g = parseInt(hex.substr(2, 2), 16);
-    const b = parseInt(hex.substr(4, 2), 16);
-    
-    // Calculate luminance
-    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    
-    // Return black for light backgrounds, white for dark backgrounds
-    return luminance > 0.5 ? '#000000' : '#ffffff';
-}
-
-// Функция для переключения на другого оператора
-function switchToOperator(carrierId, fromOfficeId, toOfficeId, cost) {
-    // Обновляем выбранный оператор
-    document.getElementById('selected-carrier').value = carrierId;
-    
-    // Находим имя оператора
-    const carrierCards = document.querySelectorAll('.carrier-card');
-    let carrierName = '';
-    carrierCards.forEach(card => {
-        if (parseInt(card.getAttribute('onclick').match(/\d+/)[0]) === carrierId) {
-            carrierName = card.querySelector('h4').textContent;
-        }
-    });
-    
-    document.getElementById('carrier-name').textContent = carrierName;
-    
-    // Обновляем офисы
-    document.getElementById('selected-from').value = fromOfficeId;
-    document.getElementById('selected-to').value = toOfficeId;
-    
-    // Обновляем отображение офисов
-    const office = offices.find(o => o.id == fromOfficeId);
-    if (office) {
-        document.getElementById('selected-from-text').textContent = `${office.city} — ${office.address}`;
-        document.getElementById('selected-from-container').style.display = 'block';
-        selectedFromOffice = fromOfficeId;
-    }
-    
-    const toOffice = offices.find(o => o.id == toOfficeId);
-    if (toOffice) {
-        document.getElementById('selected-to-text').textContent = `${toOffice.city} — ${toOffice.address}`;
-        document.getElementById('selected-to-container').style.display = 'block';
-        selectedToOffice = toOfficeId;
-    }
-    
-    // Обновляем стоимость
-    document.getElementById('calculated-cost').value = cost;
-    document.getElementById('dynamic-cost').textContent = cost.toFixed(2);
-    
-    // Загружаем офисы для нового оператора
-    loadOffices(carrierId);
-    
-    // Закрываем модальное окно
-    closeComparisonModal();
-    
-    // Активируем кнопки
-    document.getElementById('show-route-btn').disabled = false;
-    document.getElementById('calculate-btn').disabled = false;
-}
-
-// Функция для закрытия модального окна сравнения
-function closeComparisonModal() {
-    document.getElementById('operator-comparison-modal').style.display = 'none';
-}
 
 // Поиск офисов
 function setupSearch() {
