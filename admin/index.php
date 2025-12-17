@@ -308,7 +308,7 @@ $status_options = [
     <link href="../assets/css/style.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        .stat-card { background: rgba(255,255,255,0.1); border-radius: 15px; padding: 20px; text-align: center; }
+        .stat-card { background: rgba(95, 95, 95, 0.1); border-radius: 15px; padding: 20px; text-align: center; }
         body.dark .stat-card { background: rgba(255,255,255,0.08); }
         .edit-input { width: 80px; font-size: 0.9em; }
         .status-badge { font-size: 0.8em; }
