@@ -82,7 +82,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'update_courier_status') {
 
 <div class="container mt-4">
     <!-- Courier Statistics -->
-    <div class="row mb-5 text-white">
+    <div class="row mb-5 text-gray">
         <div class="col-md-4">
             <div class="stat-card">
                 <h3><?= $stats['total_assigned'] ?></h3>
@@ -105,7 +105,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'update_courier_status') {
 
     <!-- Assigned Orders -->
     <div class="card shadow-lg">
-        <div class="card-header bg-primary text-white">
+        <div class="card-header bg-primary text-gray">
             <h4 class="mb-0">Назначенные заказы</h4>
         </div>
         <div class="card-body">
