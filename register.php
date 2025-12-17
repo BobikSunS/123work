@@ -28,35 +28,12 @@ $db->prepare("INSERT INTO users (login, password, name, email, role) VALUES (?,?
     <title>Регистрация</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="assets/css/style.css" rel="stylesheet">
-    <style>
-        body {
-            background: var(--light-bg);
-            background-attachment: fixed;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-        }
-        body.dark {
-            background: var(--dark-bg);
-        }
-        .register-card {
-            background: var(--card-bg) !important;
-            color: var(--text-primary) !important;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-            backdrop-filter: blur(10px);
-        }
-        body.dark .register-card {
-            background: var(--card-bg-dark) !important;
-            color: var(--text-light) !important;
-        }
-    </style>
 </head>
-<body>
+<body class="d-flex align-items-center justify-content-center min-vh-100">
 <div class="container py-5">
     <div class="row justify-content-center">
         <div class="col-md-5">
-            <div class="card register-card shadow-lg">
+            <div class="card shadow-lg">
                 <div class="card-body p-5">
                     <h3 class="text-center mb-4">Регистрация</h3>
                     <?php if($error) echo "<div class='alert alert-danger'>$error</div>"; ?>

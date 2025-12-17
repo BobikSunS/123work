@@ -118,31 +118,8 @@ function formatDeliveryTime($hours) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="assets/css/style.css" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet-polylineutil@1.0.2/PolylineUtil.js"></script>
-    <style>
-        #map { height: 500px; width: 100%; }
-        .office-marker { cursor: pointer; }
-        .search-container { margin-bottom: 15px; }
-        .selected-office { background-color: #e7f3ff; padding: 10px; border-radius: 5px; margin-bottom: 10px; }
-        .change-button { margin-left: 10px; }
-        .office-marker-icon {
-            background-color: #fff;
-            border: 2px solid #007cba;
-            border-radius: 50%;
-            width: 24px;
-            height: 24px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            font-size: 12px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-        }
-        .office-marker-selected {
-            background-color: #ff6b6b !important;
-            border-color: #d63031 !important;
-        }
-    </style>
 </head>
 <body class="d-flex flex-column min-vh-100">
 <nav class="navbar navbar-dark bg-primary shadow-lg">

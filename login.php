@@ -34,66 +34,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <title>Вход в систему</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="assets/css/style.css" rel="stylesheet">
-    <style>
-        body { 
-            background: var(--light-bg);
-            color: var(--text-primary);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            transition: all 0.4s;
-            font-family: 'Segoe UI', sans-serif;
-        }
-        body.dark { 
-            background: var(--dark-bg);
-            color: var(--text-light);
-        }
-        .card { 
-            max-width: 420px; 
-            margin: 100px auto; 
-            border-radius: 20px; 
-            box-shadow: 0 15px 35px rgba(0,0,0,0.3); 
-            background: var(--card-bg) !important;
-            color: var(--text-primary) !important;
-        }
-        body.dark .card { 
-            background: var(--card-bg-dark) !important;
-            color: var(--text-light) !important;
-        }
-        .form-control, .btn {
-            border-radius: 10px !important;
-        }
-        .login-title {
-            font-weight: 600;
-            margin-bottom: 1.5rem;
-            color: var(--text-primary);
-        }
-        body.dark .login-title {
-            color: var(--text-light);
-        }
-    </style>
 </head>
-<body>
+<body class="d-flex align-items-center justify-content-center min-vh-100">
 <div class="container">
-    <div class="card p-5 text-center">
-        <h2 class="login-title">Вход в систему</h2>
-        <?php if ($error): ?>
-            <div class="alert alert-danger"><?= $error ?></div>
-        <?php endif; ?>
-        <form method="POST">
-            <div class="mb-3 text-start">
-                <label for="login" class="form-label">Логин</label>
-                <input type="text" id="login" name="login" class="form-control form-control-lg" placeholder="Введите логин" required>
+    <div class="row justify-content-center">
+        <div class="col-md-5">
+            <div class="card p-5 shadow-lg">
+                <h2 class="login-title text-center mb-4">Вход в систему</h2>
+                <?php if ($error): ?>
+                    <div class="alert alert-danger"><?= $error ?></div>
+                <?php endif; ?>
+                <form method="POST">
+                    <div class="mb-3 text-start">
+                        <label for="login" class="form-label">Логин</label>
+                        <input type="text" id="login" name="login" class="form-control form-control-lg" placeholder="Введите логин" required>
+                    </div>
+                    <div class="mb-4 text-start">
+                        <label for="password" class="form-label">Пароль</label>
+                        <input type="password" id="password" name="password" class="form-control form-control-lg" placeholder="Введите пароль" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-lg w-100">ВОЙТИ</button>
+                </form>
+                <div class="mt-3">
+                    <a href="index.php" class="btn btn-outline-secondary btn-sm">На главную</a>
+                    <a href="register.php" class="btn btn-outline-primary btn-sm ms-2">Регистрация</a>
+                </div>
             </div>
-            <div class="mb-4 text-start">
-                <label for="password" class="form-label">Пароль</label>
-                <input type="password" id="password" name="password" class="form-control form-control-lg" placeholder="Введите пароль" required>
-            </div>
-            <button type="submit" class="btn btn-primary btn-lg w-100">ВОЙТИ</button>
-        </form>
-        <div class="mt-3">
-            <a href="index.php" class="btn btn-outline-secondary btn-sm">На главную</a>
-            <a href="register.php" class="btn btn-outline-primary btn-sm ms-2">Регистрация</a>
         </div>
     </div>
 </div>

@@ -12,25 +12,6 @@ $orders->execute([$user['id']]);
     <title>История заказов</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="assets/css/style.css" rel="stylesheet">
-    <style>
-        .order-details {
-            background: #f8f9fa;
-            border-radius: 8px;
-            padding: 15px;
-            margin-top: 10px;
-        }
-        body.dark .order-details {
-            background: #1a2a4a;
-        }
-        .detail-row {
-            margin-bottom: 5px;
-            padding-bottom: 5px;
-            border-bottom: 1px solid #e9ecef;
-        }
-        body.dark .detail-row {
-            border-color: #444;
-        }
-    </style>
 </head>
 <body>
 <nav class="navbar navbar-dark bg-primary shadow-lg">
