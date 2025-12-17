@@ -139,7 +139,17 @@ if (isset($_POST['action']) && $_POST['action'] === 'update_courier_status') {
                                         default: echo 'bg-secondary'; break;
                                     }
                                     ?>">
-                                    <?= htmlspecialchars($order['tracking_status'] ?? 'created') ?>
+                                    <?php 
+                                    switch($order['tracking_status']) {
+                                        case 'created': echo 'Создан'; break;
+                                        case 'in_transit': echo 'В пути'; break;
+                                        case 'out_for_delivery': echo 'На доставке'; break;
+                                        case 'delivered': echo 'Доставлен'; break;
+                                        case 'sort_center': echo 'В сортировочном центре'; break;
+                                        case 'cancelled': echo 'Отменен'; break;
+                                        default: echo htmlspecialchars($order['tracking_status']);
+                                    }
+                                    ?>
                                 </span>
                             </td>
                             <td>
