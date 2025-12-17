@@ -44,23 +44,27 @@ try {
     $comparison_results = [];
 
     foreach ($carriers as $carrier) {
-        // Check if there's a route available for this carrier between cities of the offices
+        // Check if there are offices of this carrier in both cities
         $from_office = $db->prepare("SELECT city FROM offices WHERE id = ?");
         $from_office->execute([$from_office_id]);
         $from_city = $from_office->fetchColumn();
-
+        
         $to_office = $db->prepare("SELECT city FROM offices WHERE id = ?");
         $to_office->execute([$to_office_id]);
         $to_city = $to_office->fetchColumn();
 
-        // Check if there are offices of this carrier in both cities
-        $from_carrier_office = $db->prepare("SELECT id FROM offices WHERE carrier_id = ? AND city = ?");
-        $from_carrier_office->execute([$carrier['id'], $from_city]);
-        $from_carrier_office_id = $from_carrier_office->fetchColumn();
+        if (!$from_city || !$to_city) {
+            continue; // Skip if we can't get city names
+        }
 
-        $to_carrier_office = $db->prepare("SELECT id FROM offices WHERE carrier_id = ? AND city = ?");
-        $to_carrier_office->execute([$carrier['id'], $to_city]);
-        $to_carrier_office_id = $to_carrier_office->fetchColumn();
+        // Check if there are offices of this carrier in both cities
+        $from_carrier_office_stmt = $db->prepare("SELECT id FROM offices WHERE carrier_id = ? AND city = ? LIMIT 1");
+        $from_carrier_office_stmt->execute([$carrier['id'], $from_city]);
+        $from_carrier_office_id = $from_carrier_office_stmt->fetchColumn();
+
+        $to_carrier_office_stmt = $db->prepare("SELECT id FROM offices WHERE carrier_id = ? AND city = ? LIMIT 1");
+        $to_carrier_office_stmt->execute([$carrier['id'], $to_city]);
+        $to_carrier_office_id = $to_carrier_office_stmt->fetchColumn();
 
         // If both offices exist for this carrier, calculate the cost
         if ($from_carrier_office_id && $to_carrier_office_id) {
@@ -103,8 +107,8 @@ try {
                 'cost' => $cost,
                 'hours' => $hours,
                 'distance' => $carrier_distance,
-                'from_office_id' => $from_carrier_office_id,
-                'to_office_id' => $to_carrier_office_id
+                'from_office_id' => (int)$from_carrier_office_id,
+                'to_office_id' => (int)$to_carrier_office_id
             ];
         }
     }
@@ -126,6 +130,7 @@ try {
     ]);
 
 } catch (Exception $e) {
+    error_log("Operator comparison error: " . $e->getMessage());
     echo json_encode(['error' => $e->getMessage()]);
     exit;
 }
