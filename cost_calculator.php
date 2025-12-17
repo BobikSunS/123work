@@ -11,9 +11,9 @@ function calculateDeliveryCost($db, $carrier_id, $from_office_id, $to_office_id,
         throw new Exception("Invalid carrier");
     }
     
-    // Получаем информацию о маршруте
-    $routeData = $db->prepare("SELECT distance_km FROM calculated_routes WHERE from_office_id = ? AND to_office_id = ?");
-    $routeData->execute([$from_office_id, $to_office_id]);
+    // Получаем информацию о маршруте (учитываем оба направления)
+    $routeData = $db->prepare("SELECT distance_km, duration_min FROM calculated_routes WHERE (from_office_id = ? AND to_office_id = ?) OR (from_office_id = ? AND to_office_id = ?)");
+    $routeData->execute([$from_office_id, $to_office_id, $to_office_id, $from_office_id]);
     $routeData = $routeData->fetch();
     
     if (!$routeData) {
@@ -44,8 +44,10 @@ function calculateDeliveryCost($db, $carrier_id, $from_office_id, $to_office_id,
         $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
         
         $distance = 6371 * $c; // Earth's radius in km
+        $duration_min = 0; // Will be calculated later based on distance and carrier speed
     } else {
         $distance = floatval($routeData['distance_km']);
+        $duration_min = intval($routeData['duration_min']);
     }
     
     // Adjust weight for letters
@@ -95,12 +97,20 @@ function calculateDeliveryCost($db, $carrier_id, $from_office_id, $to_office_id,
         $cost = max($cost, 2.5);
     }
     
+    // Calculate duration if not available from route data
+    if ($duration_min == 0) {
+        // Calculate based on distance and carrier speed
+        $hours = $distance / $carrier['speed_kmh'];
+        $duration_min = $hours * 60;
+    }
+    
     $cost = round($cost, 2);
     
     if ($with_breakdown) {
         return [
             'cost' => $cost,
             'distance' => $distance,
+            'duration_min' => $duration_min,
             'breakdown' => [
                 'base_cost' => $base_cost,
                 'weight_cost' => $weight_cost,
@@ -114,7 +124,8 @@ function calculateDeliveryCost($db, $carrier_id, $from_office_id, $to_office_id,
     } else {
         return [
             'cost' => $cost,
-            'distance' => $distance
+            'distance' => $distance,
+            'duration_min' => $duration_min
         ];
     }
 }
